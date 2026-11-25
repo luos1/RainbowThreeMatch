@@ -9,7 +9,7 @@ public class ScoreText : MonoBehaviour
     private void Start()
     {
         text = GetComponent<TextMeshProUGUI>();
-        text.text = $"{strScore}0";
+        ShowScore(Game.instance.Score);
         Game.instance.ShowScore += ShowScore;
     }
 

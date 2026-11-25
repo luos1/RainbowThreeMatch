@@ -9,7 +9,7 @@ public class GradeText : MonoBehaviour
     private void Start()
     {
         text = GetComponent<TextMeshProUGUI>();
-        text.text = $"{strGrade}1";
+        ShowGrade(Game.instance.Grade);
         Game.instance.ShowGrade += ShowGrade;
     }
 

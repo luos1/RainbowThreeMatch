@@ -22,6 +22,6 @@ public class Login : MonoBehaviour
     }
     public void SetActive(bool isActive)
     {
-        gameObject.SetActive(true);
+        gameObject.SetActive(isActive);
     }
 }

@@ -10,7 +10,7 @@ public class TimerText : MonoBehaviour
     {
         text = GetComponent<TextMeshProUGUI>();
         Game.instance.ShowTimer += ShowTimer;
-        text.text = $"{strTimer}{99}";
+        ShowTimer(Game.instance.TimeSeconds);
     }
 
     public void ShowTimer(int time)

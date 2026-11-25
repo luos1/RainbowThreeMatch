@@ -1,0 +1,10 @@
+{
+    "name": "Rainbow.PlayModeTests",
+    "references": [
+        "Rainbow.Game",
+        "UnityEngine.UI"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}
