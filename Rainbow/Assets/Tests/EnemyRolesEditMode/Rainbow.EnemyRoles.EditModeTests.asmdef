@@ -1,0 +1,6 @@
+{
+    "name": "Rainbow.EnemyRoles.EditModeTests",
+    "references": ["Rainbow.Game"],
+    "includePlatforms": ["Editor"],
+    "optionalUnityReferences": ["TestAssemblies"]
+}

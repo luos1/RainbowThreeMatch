@@ -74,7 +74,8 @@ public class TabletCombatTests
         var unprotected = new TabletCombat();
         unprotected.Advance(60);
         Assert.That(unprotected.Result, Is.EqualTo(TabletResult.Failed));
-        Assert.That(unprotected.HullContacts, Is.EqualTo(10));
+        Assert.That(unprotected.Hp, Is.Zero);
+        Assert.That(unprotected.HullContacts, Is.LessThan(TabletCombat.MaxHp), "Heavy shells can cost two hull.");
         Assert.That(unprotected.MissedHostiles, Is.Positive);
         Assert.That(unprotected.ActiveHostiles, Is.Zero);
 
