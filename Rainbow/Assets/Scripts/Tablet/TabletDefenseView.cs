@@ -6,7 +6,7 @@ internal sealed partial class TabletView
     static readonly Color HostileColor = new Color32(255, 209, 110, 255);
     static readonly Color BossShotColor = new Color32(255, 112, 140, 255);
     readonly Image[] hostileSprites = new Image[TabletCombat.HostileCapacity];
-    readonly Image[] enemyMuzzles = new Image[TabletCombat.EnemyCount];
+    readonly Image[] enemyMuzzles = new Image[TabletCombat.EnemyCapacity];
     readonly Image[] carrierMuzzles = new Image[3];
     TabletShieldRim shieldRim;
     Image contactSpark;

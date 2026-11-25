@@ -47,7 +47,7 @@ internal sealed partial class TabletCombat
 
     readonly Queue<Volley> queue = new Queue<Volley>();
     readonly Shot[] shots = new Shot[ShotCapacity];
-    readonly Enemy[] enemies = new Enemy[Plans.Length];
+    readonly Enemy[] enemies = new Enemy[EnemyCapacity];
     readonly Effect[] effects = new Effect[EffectCapacity];
     double elapsed, nextShot, aimUntil, invulnerableUntil;
     int target = -1;
@@ -61,13 +61,24 @@ internal sealed partial class TabletCombat
     internal int Hull { get; private set; }
     internal int AwardedFlights { get; private set; }
     internal float Shield { get; private set; }
-    internal int PaletteSize => Elapsed >= 42 ? 7 : Elapsed >= 30 ? 6 : Elapsed >= 18 ? 5 : Elapsed >= 4 ? 4 : 3;
+    static readonly int[] UnlockSeconds = { 0, 0, 0, 0, 4, 18, 30, 42 };
+    internal static int UnlockSecond(int color) => UnlockSeconds[color];
+
+    internal int PaletteSize
+    {
+        get
+        {
+            int color = UnlockSeconds.Length - 1;
+            while (Elapsed < UnlockSeconds[color]) color--;
+            return color;
+        }
+    }
     internal int Wave => Elapsed >= 38 ? 3 : Elapsed >= 18 ? 2 : 1;
     internal TabletResult Result { get; private set; }
     internal Vector2 Player { get; } = new Vector2(.5f, 0);
     internal IReadOnlyList<Shot> Shots => shots;
     internal IReadOnlyList<Enemy> Enemies => enemies;
-    internal Enemy Boss => enemies[enemies.Length - 1];
+    internal Enemy Boss => enemies[EnemyCount - 1];
     internal bool BossApproaching => Result == TabletResult.Playing && !Boss.Spawned
         && Elapsed >= Plans[Plans.Length - 1].Spawn - BossWarningTime;
     internal IReadOnlyList<Effect> Effects => effects;
@@ -117,6 +128,7 @@ internal sealed partial class TabletCombat
         TotalDamage = 0;
         Result = TabletResult.Playing;
         Array.Clear(enemies, 0, enemies.Length);
+        ResetReinforcements();
         ResetHostileStats();
         ClearTransient();
     }
@@ -134,6 +146,7 @@ internal sealed partial class TabletCombat
             enemies[i].MuzzleTime = 0;
         }
         PendingShots = ActiveShots = 0;
+        FailureStreak = ReinforcementsPending = 0;
         Shield = 0;
         target = -1;
     }
@@ -142,6 +155,7 @@ internal sealed partial class TabletCombat
     {
         if (Result != TabletResult.Playing || color < 1 || color > PaletteSize || tileCount < MatchRules.MinimumGroupSize)
             return;
+        FailureStreak = 0;
         switch (color)
         {
             case 4:
@@ -176,9 +190,9 @@ internal sealed partial class TabletCombat
         for (int i = 0; i < effects.Length; i++)
             effects[i].Lifetime -= delta;
 
-        for (int i = 0; i < Plans.Length; i++)
+        for (int i = 0; i < planCount; i++)
         {
-            var plan = Plans[i];
+            var plan = roundPlans[i];
             if (elapsed < plan.Spawn || (enemies[i].Spawned && enemies[i].Hp <= 0))
                 continue;
             ref var enemy = ref enemies[i];
@@ -192,7 +206,9 @@ internal sealed partial class TabletCombat
                 enemy.Spawned = true;
                 enemy.Style = plan.Style;
                 enemy.Hp = enemy.MaxHp = plan.Hp;
+                enemy.Reinforcement = plan.Reinforcement;
             }
+            CountVisibleReinforcement(i, ref enemy);
 
             enemy.Warning = !enemy.Attacked && elapsed >= FireAt(plan, enemy) - HostileWarning;
         }
@@ -208,7 +224,7 @@ internal sealed partial class TabletCombat
 
         UpdateHostileFire(delta);
 
-        Result = Resolve(Hp, elapsed, EnemiesDefeated == Plans.Length);
+        Result = Resolve(Hp, elapsed, EnemiesDefeated == planCount);
         if (Result != TabletResult.Playing)
         {
             DroppedOnEnd = PendingShots + ActiveShots;
@@ -227,7 +243,7 @@ internal sealed partial class TabletCombat
     {
         int best = -1;
         float distance = float.MaxValue;
-        for (int i = 0; i < enemies.Length; i++)
+        for (int i = 0; i < planCount; i++)
         {
             if (!IsTargetable(i)) continue;
             var offset = enemies[i].Position - Player;
@@ -250,9 +266,9 @@ internal sealed partial class TabletCombat
 
     static Vector2 PositionAt(EnemyPlan plan, int index, float age)
     {
-        bool left = plan.Flight % 2 == 0;
+        bool left = (plan.Flight % 2 == 0) != plan.Reinforcement;
         Vector2 rally = new Vector2(plan.Lane + .022f * Mathf.Sin(age * 2.5f + index * .35f),
-            .82f - .065f * (index % 2) + .016f * Mathf.Sin(age * 1.8f));
+            .82f - .065f * (index % 2) + .016f * Mathf.Sin(age * 1.8f) - (plan.Reinforcement ? .145f : 0));
         if (age < EntryTime)
         {
             float phase = Mathf.Clamp01(age / EntryTime);
@@ -283,7 +299,7 @@ internal sealed partial class TabletCombat
         int index = Array.FindIndex(shots, shot => !shot.Active);
         int muzzle = FiredShots % muzzleTimes.Length;
         Vector2 origin = CarrierMuzzle(muzzle);
-        var plan = Plans[target];
+        var plan = roundPlans[target];
         float flight = Vector2.Distance(enemies[target].Position, origin) / ShotSpeed;
         var direction = (PositionAt(plan, target, Elapsed - plan.Spawn + flight * AimLead) - origin).normalized;
         if (volley.Color == 3)
@@ -329,7 +345,7 @@ internal sealed partial class TabletCombat
             if (hit >= 0)
             {
                 if (shot.Contacts == 0) HitShots++;
-                shot.HitMask |= 1 << hit;
+                shot.HitMask |= 1UL << hit;
                 HurtEnemy(hit, HitPower(shot.Color, shot.Contacts), shot.Color, shot.Direction);
                 shot.Contacts++;
                 if (shot.Color == 7)
@@ -354,9 +370,9 @@ internal sealed partial class TabletCombat
         if (squaredLength <= 1e-12f) return -1;
         int best = -1;
         float nearest = float.MaxValue;
-        for (int i = 0; i < enemies.Length; i++)
+        for (int i = 0; i < planCount; i++)
         {
-            if (!IsTargetable(i) || (shot.HitMask & (1 << i)) != 0) continue;
+            if (!IsTargetable(i) || (shot.HitMask & (1UL << i)) != 0) continue;
             Vector2 relative = enemies[i].Position - shot.Position;
             float amount = Mathf.Clamp01(Vector2.Dot(relative, step) / squaredLength);
             float distance = (relative - amount * step).sqrMagnitude;
@@ -376,7 +392,7 @@ internal sealed partial class TabletCombat
         {
             float closest = .17f * .17f;
             int next = -1;
-            for (int i = 0; i < enemies.Length; i++)
+            for (int i = 0; i < planCount; i++)
             {
                 if (i == impact || i == previous || !IsTargetable(i)) continue;
                 float distance = (enemies[i].Position - position).sqrMagnitude;
@@ -403,8 +419,11 @@ internal sealed partial class TabletCombat
         if (destroyed)
         {
             EnemiesDefeated++;
-            int flight = Plans[index].Flight;
-            if (FlightDefeated(flight)) AwardedFlights |= 1 << flight;
+            if (!enemy.Reinforcement)
+            {
+                int flight = roundPlans[index].Flight;
+                if (FlightDefeated(flight)) AwardedFlights |= 1 << flight;
+            }
         }
         Emit(enemy.Position, destroyed ? .13f : .076f, color, destroyed);
     }
@@ -443,7 +462,7 @@ internal sealed partial class TabletCombat
 
     internal struct Enemy
     {
-        internal bool Spawned, Warning, Attacked;
+        internal bool Spawned, Warning, Attacked, Reinforcement, ReinforcementVisible;
         internal int Style, HitColor, Volleys;
         internal float Hp, MaxHp, HitTime, MuzzleTime;
         internal Vector2 Position, Velocity, HitDirection;
@@ -452,7 +471,8 @@ internal sealed partial class TabletCombat
     internal struct Shot
     {
         internal bool Active;
-        internal int Color, Target, Contacts, HitMask;
+        internal int Color, Target, Contacts;
+        internal ulong HitMask;
         internal float Lifetime;
         internal Vector2 Position, Direction;
     }
@@ -476,8 +496,9 @@ internal sealed partial class TabletCombat
     {
         internal readonly float Spawn, Attack, Lane, Hp;
         internal readonly int Style, Flight;
-        internal readonly bool Dives;
-        internal EnemyPlan(float spawn, float attack, float lane, float hp, int style, int flight, bool dives = false)
+        internal readonly bool Dives, Reinforcement;
+        internal EnemyPlan(float spawn, float attack, float lane, float hp, int style, int flight, bool dives = false,
+            bool reinforcement = false)
         {
             Spawn = spawn;
             Attack = attack;
@@ -486,6 +507,7 @@ internal sealed partial class TabletCombat
             Style = style;
             Flight = flight;
             Dives = dives;
+            Reinforcement = reinforcement;
         }
     }
 }
