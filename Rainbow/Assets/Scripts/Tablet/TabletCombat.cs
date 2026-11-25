@@ -9,7 +9,13 @@ internal sealed class TabletCombat
     internal const int MaxHp = 10;
     internal const int Duration = 60;
     internal const int ShotCapacity = 48;
+    internal const int EffectCapacity = 10;
     internal const float MaxShield = 6;
+    internal const float ImpactTime = .12f;
+    const float EntryTime = .56f;
+    const float EntryOverhang = .21f;
+    const float AimLead = .65f;
+    const float BurstTime = .32f;
     const float ShotSpeed = 1.85f;
     const float HitRadius = .065f;
     const double Frame = 1.0 / 60;
@@ -29,7 +35,7 @@ internal sealed class TabletCombat
     readonly Queue<Volley> queue = new Queue<Volley>();
     readonly Shot[] shots = new Shot[ShotCapacity];
     readonly Enemy[] enemies = new Enemy[Plans.Length];
-    readonly Effect[] effects = new Effect[10];
+    readonly Effect[] effects = new Effect[EffectCapacity];
     double elapsed, nextShot, aimUntil, invulnerableUntil;
     int target = -1;
     int nextEffect;
@@ -98,6 +104,11 @@ internal sealed class TabletCombat
         queue.Clear();
         Array.Clear(shots, 0, shots.Length);
         Array.Clear(effects, 0, effects.Length);
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            enemies[i].Velocity = Vector2.zero;
+            enemies[i].HitTime = 0;
+        }
         PendingShots = ActiveShots = 0;
         Shield = 0;
         target = -1;
@@ -147,6 +158,10 @@ internal sealed class TabletCombat
             if (elapsed < plan.Spawn || (enemies[i].Spawned && enemies[i].Hp <= 0))
                 continue;
             ref var enemy = ref enemies[i];
+            Vector2 position = PositionAt(plan, i, Elapsed - plan.Spawn);
+            enemy.Velocity = enemy.Spawned ? (position - enemy.Position) / Mathf.Max(delta, .0001f) : Vector2.zero;
+            enemy.Position = position;
+            enemy.HitTime = Mathf.Max(0, enemy.HitTime - delta);
             if (!enemy.Spawned)
             {
                 enemy.Spawned = true;
@@ -154,9 +169,6 @@ internal sealed class TabletCombat
                 enemy.Hp = enemy.MaxHp = plan.Hp;
             }
 
-            float age = Elapsed - plan.Spawn;
-            float drift = plan.Style == 1 ? Mathf.Sin(age * 2.7f + i) * .12f : 0;
-            enemy.Position = new Vector2(plan.Lane + drift, .88f - Mathf.Min(.43f, age * .028f));
             enemy.Warning = !enemy.Attacked && elapsed >= plan.Attack - 1;
         }
 
@@ -228,12 +240,25 @@ internal sealed class TabletCombat
 
     bool IsAlive(int index) => index >= 0 && enemies[index].Spawned && enemies[index].Hp > 0;
 
+    static Vector2 PositionAt(EnemyPlan plan, int index, float age)
+    {
+        float entry = 1f - Mathf.Clamp01(age / EntryTime);
+        float amplitude = plan.Style == 1 ? .12f : plan.Style == 2 ? .058f : .033f;
+        float rhythm = plan.Style == 1 ? 2.7f : plan.Style == 2 ? 1.6f : 2.1f;
+        float swing = Mathf.Sin(age * rhythm + index);
+        float weave = amplitude * swing * (.7f + .3f * swing * swing);
+        float approach = .88f - Mathf.Min(.43f, age * .028f);
+        return new Vector2(plan.Lane + weave, approach + EntryOverhang * entry * entry * entry);
+    }
+
     void Fire()
     {
         var volley = queue.Peek();
         int index = Array.FindIndex(shots, shot => !shot.Active);
         Vector2 origin = Player + Vector2.up * .04f;
-        var direction = (enemies[target].Position - origin).normalized;
+        var plan = Plans[target];
+        float flight = Vector2.Distance(enemies[target].Position, origin) / ShotSpeed;
+        var direction = (PositionAt(plan, target, Elapsed - plan.Spawn + flight * AimLead) - origin).normalized;
         if (volley.Color == 3)
             direction = Rotate(direction, SpreadAngle(volley.Fired, volley.Count));
         shots[index] = new Shot
@@ -277,7 +302,7 @@ internal sealed class TabletCombat
             {
                 if (shot.Contacts == 0) HitShots++;
                 shot.HitMask |= 1 << hit;
-                HurtEnemy(hit, HitPower(shot.Color, shot.Contacts), shot.Color != 7);
+                HurtEnemy(hit, HitPower(shot.Color, shot.Contacts), shot.Color, shot.Direction);
                 shot.Contacts++;
                 if (shot.Color == 7)
                     Blast(hit);
@@ -317,7 +342,7 @@ internal sealed class TabletCombat
     void Blast(int impact)
     {
         Vector2 position = enemies[impact].Position;
-        Emit(position, .19f);
+        Emit(position, .19f, 7, true);
         int previous = -1;
         for (int count = 0; count < 2; count++)
         {
@@ -332,25 +357,32 @@ internal sealed class TabletCombat
                 next = i;
             }
             if (next < 0) break;
-            HurtEnemy(next, HitPower(7, 1), false);
+            HurtEnemy(next, HitPower(7, 1), 7, (enemies[next].Position - position).normalized);
             previous = next;
         }
     }
 
-    void HurtEnemy(int index, float damage, bool effect)
+    void HurtEnemy(int index, float damage, int color, Vector2 direction)
     {
         ref var enemy = ref enemies[index];
         float dealt = Mathf.Min(enemy.Hp, damage);
         TotalDamage += dealt;
         enemy.Hp -= dealt;
-        if (enemy.Hp > 0) return;
-        EnemiesDefeated++;
-        if (effect) Emit(enemy.Position, .13f);
+        enemy.HitTime = ImpactTime;
+        enemy.HitColor = color;
+        enemy.HitDirection = direction;
+        bool destroyed = enemy.Hp <= 0;
+        if (destroyed) EnemiesDefeated++;
+        Emit(enemy.Position, destroyed ? .13f : .076f, color, destroyed);
     }
 
-    void Emit(Vector2 position, float size)
+    void Emit(Vector2 position, float size, int color, bool burst)
     {
-        effects[nextEffect] = new Effect { Position = position, Size = size, Lifetime = .32f };
+        float duration = burst ? BurstTime : ImpactTime;
+        effects[nextEffect] = new Effect
+        {
+            Position = position, Size = size, Lifetime = duration, Duration = duration, Color = color, Burst = burst
+        };
         nextEffect = (nextEffect + 1) % effects.Length;
     }
 
@@ -371,9 +403,9 @@ internal sealed class TabletCombat
     internal struct Enemy
     {
         internal bool Spawned, Warning, Attacked;
-        internal int Style;
-        internal float Hp, MaxHp;
-        internal Vector2 Position;
+        internal int Style, HitColor;
+        internal float Hp, MaxHp, HitTime;
+        internal Vector2 Position, Velocity, HitDirection;
     }
 
     internal struct Shot
@@ -386,7 +418,9 @@ internal sealed class TabletCombat
 
     internal struct Effect
     {
-        internal float Lifetime, Size;
+        internal float Lifetime, Duration, Size;
+        internal int Color;
+        internal bool Burst;
         internal Vector2 Position;
     }
 

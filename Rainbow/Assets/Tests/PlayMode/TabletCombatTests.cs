@@ -110,6 +110,39 @@ public class TabletCombatTests
     }
 
     [Test]
+    public void EnemyEntersFromAboveAndBrakesIntoTheArena()
+    {
+        var combat = new TabletCombat();
+        combat.Advance(1.0 / 60);
+        float entry = combat.Enemies[0].Position.y;
+        combat.Advance(.18);
+        float moving = combat.Enemies[0].Position.y;
+        combat.Advance(.44);
+        float settled = combat.Enemies[0].Position.y;
+        combat.Advance(.18);
+
+        Assert.That(entry, Is.GreaterThan(1.02f));
+        Assert.That(settled, Is.InRange(.83f, .9f));
+        Assert.That(entry - moving, Is.GreaterThan(5 * (settled - combat.Enemies[0].Position.y)));
+    }
+
+    [Test]
+    public void NonlethalContactShowsAVisibleImpactOnTheDamageTick()
+    {
+        var combat = new TabletCombat();
+        combat.ApplyMatch(1, 3);
+        for (int frame = 0; frame < 60 && combat.HitShots == 0; frame++)
+            combat.Advance(1.0 / 60);
+
+        Assert.That(combat.HitShots, Is.EqualTo(1));
+        Assert.That(combat.Enemies[0].Hp, Is.EqualTo(1));
+        Assert.That(combat.EnemiesDefeated, Is.Zero);
+        Assert.That(combat.ActiveEffects, Is.EqualTo(1));
+        combat.Reset();
+        Assert.That(combat.ActiveEffects, Is.Zero);
+    }
+
+    [Test]
     public void RoundResultsPrioritizeLethalDamageAndResetAllPooledState()
     {
         var combat = new TabletCombat();

@@ -10,13 +10,24 @@ internal sealed class TabletView
     static readonly Color Secondary = new Color32(166, 187, 211, 255);
     static readonly Color Hull = new Color32(22, 39, 59, 255);
     static readonly Color Border = new Color32(48, 74, 97, 255);
+    static readonly Color EnemyHealth = new Color32(255, 147, 110, 255);
+    static readonly Color[] ImpactColors =
+    {
+        Color.white, new Color32(255, 106, 91, 255), new Color32(255, 175, 73, 255),
+        new Color32(255, 233, 140, 255), new Color32(116, 255, 169, 255),
+        new Color32(100, 224, 255, 255), new Color32(117, 163, 255, 255),
+        new Color32(224, 166, 255, 255)
+    };
+    const float RecoilDistance = .042f;
+    const float TrailThreshold = .12f;
 
     readonly Font font;
     readonly RectTransform safeRoot, arena, result;
     readonly Image player, playerShield, hpFill, shieldFill;
     readonly Text hpText, shieldText, waveText, shotsText, title, resultStats;
     readonly Image[] enemySprites = new Image[11], warnings = new Image[11], enemyBars = new Image[11];
-    readonly Image[] shotSprites = new Image[TabletCombat.ShotCapacity], burstSprites = new Image[10];
+    readonly Image[] enemyTrails = new Image[11];
+    readonly Image[] shotSprites = new Image[TabletCombat.ShotCapacity], burstSprites = new Image[TabletCombat.EffectCapacity];
     readonly Sprite[] enemyArt = new Sprite[3], explosions = new Sprite[4], abilityArt;
     readonly Sprite ring;
     Rect previousSafe;
@@ -60,8 +71,9 @@ internal sealed class TabletView
         {
             warnings[i] = Entity("Enemy strike warning " + (i + 1), ring);
             warnings[i].color = new Color(1, .45f, .25f, .85f);
+            enemyTrails[i] = Entity("Enemy trail " + (i + 1), enemyArt[0]);
             enemySprites[i] = Entity("Enemy " + (i + 1), enemyArt[0]);
-            enemyBars[i] = Graphic(arena, "Enemy HP " + (i + 1), 0, 0, 0, 0, new Color32(255, 147, 110, 255));
+            enemyBars[i] = Graphic(arena, "Enemy HP " + (i + 1), 0, 0, 0, 0, EnemyHealth);
         }
         for (int i = 0; i < shotSprites.Length; i++)
             shotSprites[i] = Entity("Shot " + (i + 1), abilityArt[1]);
@@ -133,12 +145,28 @@ internal sealed class TabletView
             SetActive(enemySprites[i], visible);
             SetActive(enemyBars[i], visible);
             SetActive(warnings[i], visible && enemy.Warning && state.Result == TabletResult.Playing);
+            float speed = enemy.Velocity.magnitude;
+            SetActive(enemyTrails[i], visible && speed > TrailThreshold);
             if (!visible) continue;
             float shipSize = unit * (enemy.Style == 2 ? .171f : enemy.Style == 1 ? .133f : .107f);
-            Place(warnings[i], enemy.Position, shipSize * 1.4f);
+            float hit = enemy.HitTime / TabletCombat.ImpactTime;
+            Vector2 position = enemy.Position + enemy.HitDirection * (RecoilDistance * hit * hit);
+            float bank = Mathf.Clamp(-enemy.Velocity.x * 58f, -18f, 18f);
+            Place(warnings[i], position, shipSize * 1.4f);
+            if (speed > TrailThreshold)
+            {
+                float strength = Mathf.InverseLerp(TrailThreshold, .88f, speed);
+                enemyTrails[i].sprite = enemyArt[enemy.Style];
+                enemyTrails[i].color = new Color(.56f, .84f, 1f, .12f + strength * .30f);
+                enemyTrails[i].rectTransform.localRotation = Quaternion.Euler(0, 0, bank);
+                Place(enemyTrails[i], enemy.Position - enemy.Velocity.normalized * (.025f + strength * .038f), shipSize);
+            }
             enemySprites[i].sprite = enemyArt[enemy.Style];
-            Place(enemySprites[i], enemy.Position, shipSize);
-            Place(enemyBars[i], enemy.Position + Vector2.up * .075f, shipSize * .6f);
+            enemySprites[i].color = Color.Lerp(Color.white, ImpactColors[enemy.HitColor], hit * .85f);
+            enemySprites[i].rectTransform.localRotation = Quaternion.Euler(0, 0, bank);
+            Place(enemySprites[i], position, shipSize);
+            enemyBars[i].color = Color.Lerp(EnemyHealth, Color.white, hit);
+            Place(enemyBars[i], position + Vector2.up * .075f, shipSize * .6f);
             enemyBars[i].rectTransform.sizeDelta = new Vector2(shipSize * .6f * (enemy.Hp / enemy.MaxHp), Mathf.Max(3, unit * .004f));
         }
 
@@ -157,9 +185,14 @@ internal sealed class TabletView
             var fx = state.Effects[i];
             SetActive(burstSprites[i], fx.Lifetime > 0);
             if (fx.Lifetime <= 0) continue;
-            int frame = Mathf.Clamp(Mathf.FloorToInt((1 - fx.Lifetime / .32f) * 4), 0, 3);
+            float progress = 1f - fx.Lifetime / fx.Duration;
+            int frames = fx.Burst ? explosions.Length : 2;
+            int frame = Mathf.Min((int)(progress * frames), frames - 1);
             burstSprites[i].sprite = explosions[frame];
-            Place(burstSprites[i], fx.Position, unit * fx.Size);
+            Color tint = Color.Lerp(ImpactColors[fx.Color], Color.white, fx.Burst ? .45f : .28f);
+            tint.a = 1f - progress * .7f;
+            burstSprites[i].color = tint;
+            Place(burstSprites[i], fx.Position, unit * fx.Size * (.82f + progress * .38f));
         }
 
         if (state.Result == lastResult)
