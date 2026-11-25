@@ -52,7 +52,8 @@ internal sealed partial class TabletView
         var pane = Rect(safeRoot, "Combat Pane", TabletScene.PuzzleWidth, .026f, .984f, .974f);
         Graphic(pane, "Divider", 0, 0, .004f, 1, Border);
         var hud = Graphic(pane, "Combat HUD", .027f, .874f, 1, 1, Hull).rectTransform;
-        waveText = Label(hud, "Wave", .042f, .58f, .96f, .92f, 45, Accent);
+        waveText = Label(hud, "Wave", .042f, .58f, .31f, .92f, 45, Accent);
+        BuildEnemyForecast(hud);
         var repairGlyph = Graphic(hud, "Repair glyph", .042f, .15f, .082f, .52f, Color.white);
         repairGlyph.sprite = glyphs[4];
         repairGlyph.preserveAspect = true;
@@ -130,6 +131,7 @@ internal sealed partial class TabletView
             Fill(shieldFill, state.Shield / TabletCombat.MaxShield);
             shotsText.text = $"발사 {state.FiredShots} · 대기 {state.PendingShots}   |   피격 {state.HullContacts} · 차단 {state.BlockedDamage}";
         }
+        RenderEnemyForecast(state);
 
         float unit = Mathf.Min(arena.rect.width, arena.rect.height);
         RenderFlow(state.Elapsed);
@@ -151,6 +153,7 @@ internal sealed partial class TabletView
             float bank = TabletCombat.Bank(enemy);
             if (enemy.Warning)
             {
+                warnings[i].color = enemy.Role == TabletEnemyRole.Gunner ? GunnerColor : new Color(1, .62f, .22f, .96f);
                 Place(warnings[i], TabletCombat.EnemyMuzzle(enemy) - Vector2.up * .013f, 0);
                 warnings[i].rectTransform.sizeDelta = new Vector2(shipSize * .8f, Mathf.Max(2, unit * .0045f));
             }
@@ -167,7 +170,7 @@ internal sealed partial class TabletView
             enemySprites[i].color = Color.Lerp(formationColor, ImpactColors[enemy.HitColor], hit * .85f);
             enemySprites[i].rectTransform.localRotation = Quaternion.Euler(0, 0, bank);
             Place(enemySprites[i], position, shipSize);
-            enemyBars[i].color = Color.Lerp(EnemyHealth, Color.white, hit);
+            enemyBars[i].color = Color.Lerp(enemy.Role == TabletEnemyRole.Gunner ? GunnerColor : EnemyHealth, Color.white, hit);
             Place(enemyBars[i], position + Vector2.up * (enemy.Style == 2 ? .086f : .041f), shipSize * .6f);
             enemyBars[i].rectTransform.sizeDelta = new Vector2(shipSize * .6f * (enemy.Hp / enemy.MaxHp), Mathf.Max(3, unit * .004f));
         }

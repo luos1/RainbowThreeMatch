@@ -144,6 +144,7 @@ internal sealed partial class TabletCombat
             enemies[i].Velocity = Vector2.zero;
             enemies[i].HitTime = 0;
             enemies[i].MuzzleTime = 0;
+            enemies[i].Warning = false;
         }
         PendingShots = ActiveShots = 0;
         FailureStreak = ReinforcementsPending = 0;
@@ -210,7 +211,7 @@ internal sealed partial class TabletCombat
             }
             CountVisibleReinforcement(i, ref enemy);
 
-            enemy.Warning = !enemy.Attacked && elapsed >= FireAt(plan, enemy) - HostileWarning;
+            enemy.Warning = !enemy.Attacked && elapsed >= FireAt(plan, enemy) - WarningLead(enemy.Role);
         }
 
         if (!IsTargetable(target) || elapsed >= aimUntil)
@@ -241,6 +242,9 @@ internal sealed partial class TabletCombat
 
     int SelectTarget()
     {
+        int warning = NextEnemyAttack().Index;
+        if (warning >= 0 && enemies[warning].Role == TabletEnemyRole.Gunner) return warning;
+
         int best = -1;
         float distance = float.MaxValue;
         for (int i = 0; i < planCount; i++)
@@ -409,6 +413,8 @@ internal sealed partial class TabletCombat
     void HurtEnemy(int index, float damage, int color, Vector2 direction)
     {
         ref var enemy = ref enemies[index];
+        if (enemy.Role == TabletEnemyRole.Gunner && color == 2)
+            damage *= 2;
         float dealt = Mathf.Min(enemy.Hp, damage * attackPower);
         TotalDamage += dealt;
         enemy.Hp -= dealt;
@@ -418,6 +424,7 @@ internal sealed partial class TabletCombat
         bool destroyed = enemy.Hp <= 0;
         if (destroyed)
         {
+            enemy.Warning = false;
             EnemiesDefeated++;
             if (!enemy.Reinforcement)
             {
@@ -466,6 +473,7 @@ internal sealed partial class TabletCombat
         internal int Style, HitColor, Volleys;
         internal float Hp, MaxHp, HitTime, MuzzleTime;
         internal Vector2 Position, Velocity, HitDirection;
+        internal TabletEnemyRole Role => (TabletEnemyRole)Style;
     }
 
     internal struct Shot

@@ -80,7 +80,7 @@ internal sealed partial class TabletCombat
                 else if (elapsed >= invulnerableUntil)
                 {
                     HullContacts++;
-                    Hp = Math.Max(0, Hp - 1);
+                    Hp = Math.Max(0, Hp - (shot.Heavy ? GunnerDamage : 1));
                     HullFlash = ContactFlashTime;
                     invulnerableUntil = elapsed + .35;
                 }
@@ -119,6 +119,10 @@ internal sealed partial class TabletCombat
                 for (int shell = -1; shell <= 1; shell++)
                     LaunchHostile(origin, Rotate(direction, center + shell * 18), true);
             }
+            else if (enemy.Role == TabletEnemyRole.Gunner)
+            {
+                hostiles[LaunchHostile(origin, direction, false)].Heavy = true;
+            }
             else
             {
                 // A few wingmates rake across the shoulders while their lead aims at the center.
@@ -131,7 +135,7 @@ internal sealed partial class TabletCombat
         }
     }
 
-    void LaunchHostile(Vector2 origin, Vector2 direction, bool boss)
+    int LaunchHostile(Vector2 origin, Vector2 direction, bool boss)
     {
         int index = Array.FindIndex(hostiles, shot => !shot.Active);
         hostiles[index] = new HostileShot
@@ -141,6 +145,7 @@ internal sealed partial class TabletCombat
         };
         ActiveHostiles++;
         FiredHostiles++;
+        return index;
     }
 
     internal static bool IntersectsBow(Vector2 from, Vector2 to, bool shield, out float enter)
@@ -179,7 +184,7 @@ internal sealed partial class TabletCombat
 
     internal struct HostileShot
     {
-        internal bool Active, Boss;
+        internal bool Active, Boss, Heavy;
         internal float Speed;
         internal Vector2 Position, Direction;
     }

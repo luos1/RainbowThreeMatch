@@ -53,8 +53,8 @@ internal sealed partial class TabletView
             SetActive(hostileSprites[i], shot.Active);
             if (!shot.Active) continue;
             var image = hostileSprites[i];
-            image.color = shot.Boss ? BossShotColor : HostileColor;
-            Place(image, shot.Position, unit * (shot.Boss ? .066f : .055f));
+            image.color = shot.Heavy ? GunnerColor : shot.Boss ? BossShotColor : HostileColor;
+            Place(image, shot.Position, unit * (shot.Heavy || shot.Boss ? .066f : .055f));
             Direction(image, shot.Direction);
         }
 
