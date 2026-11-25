@@ -4,6 +4,97 @@ using UnityEngine;
 public class TabletCombatTests
 {
     [Test]
+    public void AFullOpeningFlightArrivesBeforeAnyDamageAndFirstContactIsDelayedByTravel()
+    {
+        var combat = new TabletCombat();
+        combat.Advance(1.6);
+        int visible = 0;
+        foreach (var enemy in combat.Enemies)
+            if (enemy.Spawned && enemy.Position.x >= 0 && enemy.Position.x <= 1 && enemy.Position.y <= 1)
+                visible++;
+        Assert.That(visible, Is.EqualTo(5));
+        combat.Advance(1.65);
+        Assert.That(combat.Hp, Is.EqualTo(10));
+        Assert.That(combat.ActiveHostiles, Is.Positive);
+        combat.Advance(1.7);
+        Assert.That(combat.Hp, Is.LessThan(10));
+        Assert.That(combat.HullContacts, Is.Positive);
+    }
+
+    [Test]
+    public void AProjectileCanMissTheHullOrBeCaughtByTheVisibleShieldRim()
+    {
+        var from = new Vector2(.274f, .45f);
+        var to = new Vector2(.274f, -.1f);
+        Assert.That(TabletCombat.IntersectsBow(from, to, false, out _), Is.False);
+        Assert.That(TabletCombat.IntersectsBow(from, to, true, out float contact), Is.True);
+        Assert.That(contact, Is.InRange(0f, 1f));
+        Assert.That(TabletCombat.IntersectsBow(new Vector2(0, -.012f), new Vector2(0, -.52f), true, out _), Is.False);
+    }
+
+    [Test]
+    public void SimultaneousShellsCannotStackDamageDuringTheBriefContactImmunity()
+    {
+        var combat = new TabletCombat();
+        var launch = typeof(TabletCombat).GetMethod("LaunchHostile",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var origin = new Vector2(combat.Player.x, TabletCombat.HullTop + .006f);
+        for (int i = 0; i < 3; i++) launch.Invoke(combat, new object[] { origin, Vector2.down, false });
+        combat.Advance(.05);
+        Assert.That(combat.Hp, Is.EqualTo(9));
+        Assert.That(combat.HullContacts, Is.EqualTo(1));
+        Assert.That(combat.InvulnerableContacts, Is.EqualTo(2));
+        Assert.That(combat.ActiveHostiles, Is.Zero);
+        combat.Advance(.36);
+        launch.Invoke(combat, new object[] { origin, Vector2.down, false });
+        combat.Advance(.05);
+        Assert.That(combat.Hp, Is.EqualTo(8));
+    }
+
+    [Test]
+    public void TheCarrierAndAllThreeVisibleMuzzlesStayFixedThroughCombatAndRetry()
+    {
+        var combat = new TabletCombat();
+        Vector2[] before = { combat.CarrierMuzzle(0), combat.CarrierMuzzle(1), combat.CarrierMuzzle(2) };
+        combat.ApplyMatch(1, 5);
+        combat.Advance(12);
+        Assert.That(combat.HullContacts, Is.Positive);
+        Assert.That(combat.Player, Is.EqualTo(new Vector2(.5f, 0)));
+        combat.Reset();
+        for (int i = 0; i < before.Length; i++)
+        {
+            Assert.That(combat.CarrierMuzzle(i), Is.EqualTo(before[i]));
+            Assert.That(before[i].y, Is.GreaterThan(0));
+        }
+    }
+
+    [Test]
+    public void WithoutInputTheCarrierFallsButDefenseCanSurviveWithoutExtraProjectiles()
+    {
+        var unprotected = new TabletCombat();
+        unprotected.Advance(60);
+        Assert.That(unprotected.Result, Is.EqualTo(TabletResult.Failed));
+        Assert.That(unprotected.HullContacts, Is.EqualTo(10));
+        Assert.That(unprotected.MissedHostiles, Is.Positive);
+        Assert.That(unprotected.ActiveHostiles, Is.Zero);
+
+        var defended = new TabletCombat();
+        int peak = 0;
+        while (defended.Result == TabletResult.Playing)
+        {
+            if (defended.Hp <= 7) defended.ApplyMatch(4, 3);
+            if (defended.PaletteSize >= 6 && defended.Shield <= .25f) defended.ApplyMatch(6, 5);
+            defended.Advance(.23);
+            peak = System.Math.Max(peak, defended.ActiveHostiles);
+        }
+        Assert.That(defended.Result, Is.EqualTo(TabletResult.Survived));
+        Assert.That(defended.OfferedShots, Is.Zero);
+        Assert.That(defended.BlockedDamage, Is.GreaterThan(3));
+        Assert.That(peak, Is.InRange(3, TabletCombat.HostileCapacity));
+        Assert.That(defended.ActiveHostiles, Is.Zero);
+    }
+
+    [Test]
     public void CombatTypeExists()
     {
         Assert.That(typeof(Game).Assembly.GetType("TabletCombat"), Is.Not.Null);
@@ -38,7 +129,7 @@ public class TabletCombatTests
     public void DefenseCapsAndExpiresWithoutCreatingProjectiles()
     {
         var combat = new TabletCombat();
-        combat.Advance(9.1);
+        combat.Advance(4.9);
         Assert.That(combat.Hp, Is.EqualTo(9));
         combat.ApplyMatch(4, 5);
         Assert.That(combat.Hp, Is.EqualTo(10));
@@ -107,7 +198,7 @@ public class TabletCombatTests
         Assert.That(combat.Wave, Is.EqualTo(3));
         KeepAlive(combat, 42);
         Assert.That(combat.PaletteSize, Is.EqualTo(7));
-        Assert.That(combat.TotalStartingEnemyHp, Is.EqualTo(32f));
+        Assert.That(combat.TotalStartingEnemyHp, Is.EqualTo(44f));
     }
 
     [Test]
@@ -157,7 +248,7 @@ public class TabletCombatTests
             Assert.That(enemy.Position.x, Is.InRange(.04f, .96f));
             Assert.That(enemy.Position.y, Is.InRange(.20f, .96f));
         }
-        Assert.That(combat.TotalStartingEnemyHp, Is.EqualTo(32));
+        Assert.That(combat.TotalStartingEnemyHp, Is.EqualTo(44));
     }
 
     [Test]
@@ -168,7 +259,7 @@ public class TabletCombatTests
         for (int i = 0; i < 240 && combat.EnemiesDefeated < 1; i++) combat.Advance(1.0 / 60);
         Assert.That(combat.EnemiesDefeated, Is.EqualTo(1));
         Assert.That(combat.AwardedFlights, Is.Zero);
-        for (int i = 0; i < 240 && combat.EnemiesDefeated < 2; i++) combat.Advance(1.0 / 60);
+        for (int i = 0; i < 240 && (combat.AwardedFlights & 1) == 0; i++) combat.Advance(1.0 / 60);
         Assert.That(combat.AwardedFlights, Is.EqualTo(1));
         combat.Advance(60);
         Assert.That(combat.Result, Is.EqualTo(TabletResult.Failed));
@@ -183,8 +274,8 @@ public class TabletCombatTests
     {
         var combat = new TabletCombat();
         combat.Reset(13, 1.3f);
-        combat.Advance(17.1);
-        Assert.That(combat.Hp, Is.EqualTo(10));
+        combat.Advance(4.9);
+        Assert.That(combat.Hp, Is.EqualTo(12));
         combat.ApplyMatch(4, 3);
         Assert.That(combat.Hp, Is.EqualTo(13));
         KeepAlive(combat, 30);
@@ -242,8 +333,8 @@ public class TabletCombatTests
             combat.Advance(1);
         }
         Assert.That(combat.Result, Is.EqualTo(TabletResult.Cleared));
-        Assert.That(combat.EnemiesDefeated, Is.EqualTo(11));
-        Assert.That(combat.TotalDamage, Is.EqualTo(32).Within(.001));
+        Assert.That(combat.EnemiesDefeated, Is.EqualTo(24));
+        Assert.That(combat.TotalDamage, Is.EqualTo(44).Within(.001));
         Assert.That(combat.AwardedFlights, Is.EqualTo(31));
         Assert.That(TabletProgress.RewardTotal(combat.AwardedFlights), Is.EqualTo(180));
         Assert.That(combat.ActiveShots + combat.PendingShots, Is.Zero);
@@ -253,6 +344,7 @@ public class TabletCombatTests
         Assert.That(combat.PaletteSize, Is.EqualTo(3));
         Assert.That(combat.FiredShots, Is.Zero);
         Assert.That(combat.ActiveEffects, Is.Zero);
+        Assert.That(combat.ActiveHostiles + combat.FiredHostiles, Is.Zero);
     }
 
     static void KeepAlive(TabletCombat combat, int until)

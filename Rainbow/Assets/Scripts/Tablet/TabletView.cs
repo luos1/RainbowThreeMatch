@@ -24,10 +24,10 @@ internal sealed partial class TabletView
 
     readonly Font font;
     readonly RectTransform safeRoot, arena;
-    readonly Image player, playerShield, hpFill, shieldFill;
+    readonly Image player, hpFill, shieldFill;
     readonly Text hpText, shieldText, waveText, shotsText;
-    readonly Image[] enemySprites = new Image[11], warnings = new Image[11], enemyBars = new Image[11];
-    readonly Image[] enemyTrails = new Image[11];
+    readonly Image[] enemySprites = new Image[TabletCombat.EnemyCount], warnings = new Image[TabletCombat.EnemyCount];
+    readonly Image[] enemyBars = new Image[TabletCombat.EnemyCount], enemyTrails = new Image[TabletCombat.EnemyCount];
     readonly Image[] backdropTiles = new Image[2];
     readonly TabletStarFlow starFlow;
     readonly Image[] shotSprites = new Image[TabletCombat.ShotCapacity], burstSprites = new Image[TabletCombat.EffectCapacity];
@@ -36,7 +36,7 @@ internal sealed partial class TabletView
     Rect previousSafe;
     Vector2 previousScreen;
     int backdropCycle = -1;
-    (int hp, int shield, int wave, int fired, int waiting, int blocked) previousStatus = (-1, -1, -1, -1, -1, -1);
+    (int hp, int shield, int wave, int fired, int waiting, int blocked, int hits) previousStatus = (-1, -1, -1, -1, -1, -1, -1);
     internal TabletView(Canvas canvas, Font font, Sprite[] abilities, Action attack, Action hull)
     {
         this.font = font;
@@ -72,13 +72,11 @@ internal sealed partial class TabletView
         starFlow = Rect(arena, "Star flow", 0, 0, 1, 1).gameObject.AddComponent<TabletStarFlow>();
         starFlow.raycastTarget = false;
 
-        playerShield = Entity("Player shield", ring);
-        playerShield.color = new Color(.6f, .86f, 1f, .78f);
-        player = Entity("Player ship", Art("player"));
+        player = Entity("Carrier bow", Art("carrier-bow"));
+        player.preserveAspect = false;
         for (int i = 0; i < enemySprites.Length; i++)
         {
-            warnings[i] = Entity("Enemy strike warning " + (i + 1), ring);
-            warnings[i].color = new Color(1, .45f, .25f, .85f);
+            warnings[i] = Graphic(arena, "Enemy strike warning " + (i + 1), 0, 0, 0, 0, new Color(1, .62f, .22f, .96f));
             enemyTrails[i] = Entity("Enemy trail " + (i + 1), enemyArt[0]);
             enemySprites[i] = Entity("Enemy " + (i + 1), enemyArt[0]);
             enemyBars[i] = Graphic(arena, "Enemy HP " + (i + 1), 0, 0, 0, 0, EnemyHealth);
@@ -87,6 +85,7 @@ internal sealed partial class TabletView
             shotSprites[i] = Entity("Shot " + (i + 1), abilityArt[1]);
         for (int i = 0; i < burstSprites.Length; i++)
             burstSprites[i] = Entity("Burst " + (i + 1), explosions[0]);
+        BuildDefenseVisuals();
 
         var footer = Graphic(pane, "Combat status", .027f, 0, 1, .064f, Hull).rectTransform;
         shotsText = Label(footer, "Shot totals", .043f, .13f, .96f, .86f, 37, Secondary);
@@ -114,7 +113,7 @@ internal sealed partial class TabletView
     {
         FitSafeArea();
         int shieldTenths = Mathf.CeilToInt(state.Shield * 10);
-        var status = (state.Hp, shieldTenths, state.Wave, state.FiredShots, state.PendingShots, state.BlockedDamage);
+        var status = (state.Hp, shieldTenths, state.Wave, state.FiredShots, state.PendingShots, state.BlockedDamage, state.HullContacts);
         if (status != previousStatus)
         {
             previousStatus = status;
@@ -123,16 +122,12 @@ internal sealed partial class TabletView
             shieldText.text = $"쉴드 {shieldTenths / 10f:0.0}초";
             Fill(hpFill, state.Hp / (float)state.Hull);
             Fill(shieldFill, state.Shield / TabletCombat.MaxShield);
-            shotsText.text = $"발사 {state.FiredShots}발   ·   대기 {state.PendingShots}발   ·   방어 {state.BlockedDamage}";
+            shotsText.text = $"발사 {state.FiredShots} · 대기 {state.PendingShots}   |   피격 {state.HullContacts} · 차단 {state.BlockedDamage}";
         }
 
         float unit = Mathf.Min(arena.rect.width, arena.rect.height);
         RenderFlow(state.Elapsed);
-        Place(player, state.Player, unit * .138f);
-        Direction(player, Vector2.up);
-        SetActive(playerShield, state.Shield > 0);
-        if (state.Shield > 0)
-            Place(playerShield, state.Player, unit * .205f);
+        RenderCarrier(state);
 
         for (int i = 0; i < enemySprites.Length; i++)
         {
@@ -144,11 +139,15 @@ internal sealed partial class TabletView
             float speed = enemy.Velocity.magnitude;
             SetActive(enemyTrails[i], visible && speed > TrailThreshold);
             if (!visible) continue;
-            float shipSize = unit * (enemy.Style == 2 ? .171f : enemy.Style == 1 ? .133f : .107f);
+            float shipSize = unit * (enemy.Style == 2 ? .184f : enemy.Style == 1 ? .084f : .073f);
             float hit = enemy.HitTime / TabletCombat.ImpactTime;
             Vector2 position = enemy.Position + enemy.HitDirection * (RecoilDistance * hit * hit);
-            float bank = Mathf.Clamp(-enemy.Velocity.x * 58f, -24f, 24f);
-            Place(warnings[i], position, shipSize * 1.4f);
+            float bank = TabletCombat.Bank(enemy);
+            if (enemy.Warning)
+            {
+                Place(warnings[i], TabletCombat.EnemyMuzzle(enemy) - Vector2.up * .013f, 0);
+                warnings[i].rectTransform.sizeDelta = new Vector2(shipSize * .8f, Mathf.Max(2, unit * .0045f));
+            }
             if (speed > TrailThreshold)
             {
                 float strength = Mathf.InverseLerp(TrailThreshold, .88f, speed);
@@ -162,7 +161,7 @@ internal sealed partial class TabletView
             enemySprites[i].rectTransform.localRotation = Quaternion.Euler(0, 0, bank);
             Place(enemySprites[i], position, shipSize);
             enemyBars[i].color = Color.Lerp(EnemyHealth, Color.white, hit);
-            Place(enemyBars[i], position + Vector2.up * .075f, shipSize * .6f);
+            Place(enemyBars[i], position + Vector2.up * (enemy.Style == 2 ? .086f : .041f), shipSize * .6f);
             enemyBars[i].rectTransform.sizeDelta = new Vector2(shipSize * .6f * (enemy.Hp / enemy.MaxHp), Mathf.Max(3, unit * .004f));
         }
 
@@ -191,6 +190,7 @@ internal sealed partial class TabletView
             Place(burstSprites[i], fx.Position, unit * fx.Size * (.82f + progress * .38f));
         }
 
+        RenderDefenseVisuals(state, unit);
         RenderSortieEffects(state, unit);
     }
 
