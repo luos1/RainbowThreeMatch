@@ -107,3 +107,6 @@ Rainbow/Assets/Plugins/Android/FirebaseApp.androidlib.meta
 .claude-flow/
 Rainbow/FirebasePackages/
 Rainbow/Assets/GeneratedLocalRepo/
+Rainbow/Assets/GeneratedLocalRepo.meta
+Rainbow/ProjectSettings/AndroidResolverDependencies.xml
+Rainbow/ProjectSettings/GvhProjectSettings.xml
