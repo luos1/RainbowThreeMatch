@@ -1,3 +1,4 @@
+#if UNITY_IOS
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.Callbacks;
@@ -51,3 +52,4 @@ namespace AdBrixRm_iOS {
 		}
     }
 }
+#endif

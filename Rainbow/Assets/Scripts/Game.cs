@@ -1,730 +1,243 @@
-﻿using UnityEngine;
-using UnityEngine.UI;
+using System;
 using System.Collections;
-using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using Random = UnityEngine.Random;
 
-public class BlockData
-{
-    public int x;
-    public int y;
-    public int colorIndex;
-    public int dropHeight;
-}
-[System.Serializable]
-public class ScoreData
-{
-    public int count;
-    public int score;
-}
-[System.Serializable]
+[Serializable]
 public class HBlocks
 {
     public int index;
     public Block[] blocks;
-
-    public void Init(int index)
-    {
-        this.index = index;
-        var yCount = PositionHelper.instance.YCount;
-        for (int i = 0; i < yCount; ++i)
-        {
-            var y = i;
-            blocks[i].SetPosition(index,y);
-        }
-    }
-    public void FillData(BlockData[] data)
-    {
-        var yCount = PositionHelper.instance.YCount;
-        for (int i = 0; i < yCount;++i)
-        {
-            var index = data[i].colorIndex;
-            var height = data[i].dropHeight;
-            blocks[i].InitColorData(index);
-            blocks[i].Show(height);
-        }
-    }
-
-    internal void Pop(BlockData[] data)
-    {
-        for(int i = 0; i < data.Length; ++i)
-        {
-            if(data[i].colorIndex == 0)
-            {
-                blocks[i].Pop();
-            }
-        }
-    }
-    internal void ChangeColor(int[] data)
-    {
-        var yCount = PositionHelper.instance.YCount;
-        for (int i = 0; i < yCount; ++i)
-        {
-            if (data[i] != 0 && blocks[i].colorIndex != data[i])
-            {
-                blocks[i].InitColorData(data[i]);
-                //blocks[i].ChangeColor();
-                blocks[i].ChangeSprite();
-            }
-        }
-    }
-    public bool isDropped()
-    {
-        bool isDropped = true;
-        foreach (Block b in blocks)
-        {
-            bool dropped = b.CheckDropEnd();
-            if (!dropped)
-            {
-                isDropped = false;
-            }
-        }
-        return isDropped;
-    }
-    public void CheckTest(int[] data)
-    {
-        var yCount = PositionHelper.instance.YCount;
-        for (int i = 0; i < yCount; ++i)
-        {
-            if (data[i] == 0)
-            {
-                blocks[i].TestCheck();
-            }
-            else if (blocks[i].colorIndex != data[i])
-            {
-                blocks[i].TestChangeCheck();
-            }
-        }
-    }
 }
+
 public class Game : MonoBehaviour
 {
     public static Game instance;
-    public int MaxColorCount => grade + 3;
+    public int MaxColorCount => Grade + 3;
+    public int Score { get; private set; }
+    public int Grade { get; private set; }
+    public int TimeSeconds { get; private set; }
+    public bool CanPlay => roundActive && !resolvingBoard;
+
     [SerializeField] int maxGrade = 5;
+    [SerializeField] int minGrade;
+    [SerializeField] int timeSeconds;
     [SerializeField] Image screen;
     [SerializeField] GameObject alphaScreen;
     [SerializeField] GameObject objGameOver;
-    [SerializeField] int minGrade = 0;
-    [SerializeField] int timeSeconds;
-    public float DropTime = 1f;
-    int[,] boardData;
     public HBlocks[] blocks;
-    int score;
-    int grade;
-    public System.Action<int> ShowScore;
-    public System.Action<int> ShowGrade;
-    public System.Action<int> ShowTimer;
-    public int Score
-    {
-        get { return score;}
-        set {
-            if (score == value) return;
-            score = value;
-            ShowScore?.Invoke(score);
-        }
-    }
-    public int Grade
-    {
-        get { return grade; }
-        set
-        {
-            if (grade == value) return;
-            grade = value;
-            ShowGrade?.Invoke(grade);
-        }
-    }
-    public int TimeSeconds
-    {
-        get { return time; }
-        set
-        {
-            if (time == value) return;
-            time = value;
-            ShowTimer?.Invoke(time);
-        }
-    }
-    int time;
-    int maxHeight;
-    bool addedTime = false;
 
-    private void Awake()
+    public event Action<int> ShowScore;
+    public event Action<int> ShowGrade;
+    public event Action<int> ShowTimer;
+
+    int[,] boardData;
+    float remainingSeconds;
+    bool roundActive;
+    bool startingRound;
+    bool resolvingBoard;
+    bool previousClickMatched;
+
+    void Awake()
     {
-        var xCount = PositionHelper.instance.XCount;
-        var yCount = PositionHelper.instance.YCount;
-        Grade = minGrade;
-        score = 0;
-        if(instance == null)
-        {
-            instance = this;
-        }
-        boardData = new int[xCount, yCount];
-        for(int i = 0; i < xCount; ++i)
-        {
-            for (int j = 0; j < yCount; ++j)
-            {
-                boardData[i, j] = 0;
-            }
-        }
-        for(int i = 0; i < blocks.Length; ++i)
-        {
-            Debug.Log($"{i}");
-            blocks[i].Init(i);
-        }
+        instance = this;
     }
+
     void Start()
     {
-        alphaScreen.SetActive(true);
+        var positions = PositionHelper.instance;
+        boardData = new int[positions.XCount, positions.YCount];
+        for (int x = 0; x < boardData.GetLength(0); x++)
+        for (int y = 0; y < boardData.GetLength(1); y++)
+        {
+            blocks[x].blocks[y].SetPosition(x, y);
+        }
+
         OnClickRetry();
     }
-    public void Check((int,int) block)
+
+    void OnDestroy()
     {
-        Debug.Log($"[Game] : CHECK BLACK :: {block.Item1}, {block.Item2}");
-
-        alphaScreen.SetActive(true);
-        if (CheckMatch(block))
+        if (instance == this)
         {
-            addedTime = true;
-            StartCoroutine(IEPop());
-        }
-        else
-        {
-            alphaScreen.SetActive(false);
-            addedTime = false;
-        }
-    }
-    public void CheckTest()
-    {
-        Debug.Log("[Game] : TEST CHECK BLACK");
-        if (CheckMatch())
-        {
-            ChangeColorTest();
-        }
-    }
-    public void FillTest()
-    {
-        Debug.Log("[Game] : FILL MATCH BLOCK");
-
-        FillData();
-    }
-    public void OnClickRetry()
-    {
-        StartCoroutine(IEStartGame());
-    }
-    public void CheckUpgrade(int score)
-    {
-        float tempGrade = (score * 0.001f) + minGrade;
-
-        Grade = Mathf.FloorToInt(tempGrade) >= maxGrade ?
-            maxGrade - 1 : Mathf.FloorToInt(tempGrade);
-    }
-
-
-    void ChangeColorTest()
-    {
-        Debug.Log($"[GAME] : ChangeColor ::::::::::");
-
-
-        var xCount = PositionHelper.instance.XCount;
-        var yCount = PositionHelper.instance.YCount;
-        var changed = new List<string>();
-        for (var i = 0; i < xCount; ++i)
-        {
-            var x = i;
-            for (var j = 0; j < yCount; ++j)
-            {
-                var y = j;
-
-                if (boardData[x, y] == 0)
-                {
-                    if (x > 0 && boardData[x - 1, y] != 0)
-                    {
-                        if (!changed.Contains($"{x - 1}{y}"))
-                        {
-                            Debug.Log($"CHANGED :: {x - 1} : {y}");
-                            changed.Add($"{x - 1}{y}");
-                            boardData[x - 1, y] = ColorHelper.Instance.GetColorIndex(boardData[x - 1, y] + 1);
-                        }
-                    }
-                    if (x < 4 && boardData[x + 1, y] != 0)
-                    {
-                        if (!changed.Contains($"{x + 1}{y}"))
-                        {
-                            Debug.Log($"CHANGED :: {x + 1} : {y}");
-                            changed.Add($"{x + 1}{y}");
-                            boardData[x + 1, y] = ColorHelper.Instance.GetColorIndex(boardData[x + 1, y] + 1);
-                        }
-                    }
-                    if (y > 0 && boardData[x, y - 1] != 0)
-                    {
-                        if (!changed.Contains($"{x}{y - 1}"))
-                        {
-                            Debug.Log($"CHANGED :: {x} : {y - 1}");
-                            changed.Add($"{x}{y - 1}");
-                            boardData[x, y - 1] = ColorHelper.Instance.GetColorIndex(boardData[x, y - 1] + 1);
-                        }
-                    }
-                    if (y < 6 && boardData[x, y + 1] != 0)
-                    {
-                        if (!changed.Contains($"{x}{y + 1}"))
-                        {
-                            Debug.Log($"CHANGED :: {x} : {y + 1}");
-                            changed.Add($"{x}{y + 1}");
-                            boardData[x, y + 1] = ColorHelper.Instance.GetColorIndex(boardData[x, y + 1] + 1);
-                        }
-                    }
-                }
-            }
-        }
-
-        for (var i = 0; i < xCount; ++i)
-        {
-            var data = new int[yCount];
-            for (var j = yCount - 1; j >= 0; --j)
-            {
-                data[j] = boardData[i, j];
-            }
-            blocks[i].CheckTest(data);
-        }
-    }
-    void ChangeColor()
-    {
-        var xCount = PositionHelper.instance.XCount;
-        var yCount = PositionHelper.instance.YCount;
-        Debug.Log($"[GAME] : ChangeColor ::::::::::");
-        var changed = new List<string>();
-        for (var i = 0; i < xCount; ++i)
-        {
-            var x = i;
-            for (var j = 0; j < yCount; ++j)
-            {
-                var y = j;
-
-                if (boardData[x, y] == 0)
-                {
-                    if (x > 0 && boardData[x - 1, y] != 0)
-                    {
-                        if (!changed.Contains($"{x - 1}{y}"))
-                        {
-                            //Debug.Log($"CHANGED :: {x - 1} : {y}");
-                            changed.Add($"{x - 1}{y}");
-                            boardData[x - 1, y] = ColorHelper.Instance.GetColorIndex(boardData[x - 1, y] + 1);
-                        }
-                    }
-                    if (x < xCount-1 && boardData[x + 1, y] != 0)
-                    {
-                        if (!changed.Contains($"{x + 1}{y}"))
-                        {
-                            //Debug.Log($"CHANGED :: {x + 1} : {y}");
-                            changed.Add($"{x + 1}{y}");
-                            boardData[x + 1, y] = ColorHelper.Instance.GetColorIndex(boardData[x + 1, y] + 1);
-                        }
-                    }
-                    if (y > 0 && boardData[x, y - 1] != 0)
-                    {
-                        if (!changed.Contains($"{x}{y - 1}"))
-                        {
-                            //Debug.Log($"CHANGED :: {x} : {y - 1}");
-                            changed.Add($"{x}{y - 1}");
-                            boardData[x, y - 1] = ColorHelper.Instance.GetColorIndex(boardData[x, y - 1] + 1);
-                        }
-                    }
-                    if (y < yCount-1 && boardData[x, y + 1] != 0)
-                    {
-                        if (!changed.Contains($"{x}{y + 1}"))
-                        {
-                            //Debug.Log($"CHANGED :: {x} : {y + 1}");
-                            changed.Add($"{x}{y + 1}");
-                            boardData[x, y + 1] = ColorHelper.Instance.GetColorIndex(boardData[x, y + 1] + 1);
-                        }
-                    }
-                }
-            }
-        }
-
-        for (var i = 0; i < xCount; ++i)
-        {
-            var data = new int[yCount];
-            for (var j = yCount-1; j >= 0; --j)
-            {
-                data[j] = boardData[i, j];
-            }
-            blocks[i].ChangeColor(data);
+            instance = null;
         }
     }
 
-    bool CheckMatch()
+    void Update()
     {
-        var xCount = PositionHelper.instance.XCount;
-        var yCount = PositionHelper.instance.YCount;
-        bool isMatched = false;
-
-        // Check vertical matches
-
-        var temp = new int[xCount,yCount];
-
-        for (int i = 0; i < xCount; i++)
-        {
-            for (int j = 0; j < yCount; j++)
-            {
-                temp[i,j] = boardData[i, j];
-            }
-        }
-
-        List<List<(int, int)>> connectedComponents = new List<List<(int, int)>>();
-
-        for (int i = 0; i < xCount; ++i)
-        {
-            for (int j = 0; j < yCount; ++j)
-            {
-                if (boardData[i, j] != 0)
-                {
-                    List<(int, int)> component = new List<(int, int)>();
-                    DFS(boardData[i,j], i, j, ref component);
-                    connectedComponents.Add(component);
-                }
-            }
-        }
-
-
-        foreach (var component in connectedComponents)
-        {
-            if (component.Count >= 3)
-            {
-                isMatched = true;
-            }
-        }
-
-
-        //Pop
-        //for (int i = 0; i < xCount; i++)
-        //{
-        //    BlockData[] data = new BlockData[yCount];
-
-        //    for (int j = yCount-1; j >= 0; j--)
-        //    {
-        //        BlockData block = new BlockData();
-        //        block.x = i;
-        //        block.y = j;
-        //        block.colorIndex = boardData[i, j];
-        //        block.dropHeight = 0;
-        //        data[j] = block;
-        //    }
-        //    blocks[i].Pop(data);
-        //}
-
-
-        // line matching
-        //for (int i = 0; i < 3; i++)
-        //{
-        //    for (int j = 0; j < 7; j++)
-        //    {
-        //        Debug.Log($"{i}{j} : {boardData[i, j]} : {boardData[i + 1, j]} : {boardData[i + 2, j]}");
-        //        if (boardData[i, j] == boardData[i + 1, j] && boardData[i, j] == boardData[i + 2, j])
-        //        {
-        //            temp[i, j] = 0;
-        //            temp[i + 1, j] = 0;
-        //            temp[i + 2, j] = 0;
-        //            isMatched = true;
-        //        }
-        //    }
-        //}
-        //for (int j = 0; j < 5; j++)
-        //{
-        //    for (int i = 0; i < 5; i++)
-        //    {
-        //        Debug.Log($"{i}{j} : {boardData[i, j]} : {boardData[i, j + 1]} : {boardData[i, j + 2]}");
-        //        if (boardData[i, j] == boardData[i, j + 1] && boardData[i, j] == boardData[i, j + 2])
-        //        {
-        //            temp[i, j] = 0;
-        //            temp[i, j + 1] = 0;
-        //            temp[i, j + 2] = 0;
-        //            isMatched = true;
-        //        }
-        //    }
-        //}
-
-        //boardData = temp;
-
-        //for (int i = 0; i < 5; i++)
-        //{
-        //    BlockData[] data = new BlockData[7];
-
-        //    for (int j = 6; j >= 0; j--)
-        //    {
-        //        BlockData block = new BlockData();
-        //        block.x = i;
-        //        block.y = j;
-        //        block.colorIndex = boardData[i, j];
-        //        block.dropHeight = 0;
-        //        data[j] = block;
-        //    }
-        //    blocks[i].Pop(data);
-        //}
-
-
-        return isMatched;
-    }
-    bool CheckMatch((int,int) blockIndex)
-    {
-        var xCount = PositionHelper.instance.XCount;
-        var yCount = PositionHelper.instance.YCount;
-        bool isMatched = false;
-
-        // Check vertical matches
-
-        var temp = new int[xCount, yCount];
-
-        for (int i = 0; i < xCount; i++)
-        {
-            for (int j = 0; j < yCount; j++)
-            {
-                temp[i, j] = boardData[i, j];
-            }
-        }
-
-        List<(int, int)> component = new List<(int, int)>();
-        DFS(boardData[blockIndex.Item1, blockIndex.Item2], blockIndex.Item1, blockIndex.Item2, ref component);
-
-        if (component.Count >= 3)
-        {
-            if (addedTime)
-            {
-                AddTimer(component.Count);
-            }
-            isMatched = true;
-            addedTime = true;
-            foreach (var item in component)
-            {
-                boardData[item.Item1, item.Item2] = 0;
-            }
-            AddScores(component.Count);
-        }
-        else
-        {
-            addedTime = false;
-        }
-
-
-        for (int i = 0; i < xCount; i++)
-        {
-            BlockData[] data = new BlockData[yCount];
-
-            for (int j = yCount-1; j >= 0; j--)
-            {
-                BlockData block = new BlockData();
-                block.x = i;
-                block.y = j;
-                block.colorIndex = boardData[i, j];
-                block.dropHeight = 0;
-                data[j] = block;
-            }
-            blocks[i].Pop(data);
-        }
-
-        return isMatched;
-    }
-    void DFS(int matchValue, int i, int j, ref List<(int, int)> component)
-    {
-        var xCount = PositionHelper.instance.XCount;
-        var yCount = PositionHelper.instance.YCount;
-        if (i < 0 || i >= xCount || j < 0 || j >= yCount || boardData[i, j] <= 0 || component.Contains((i, j)) || boardData[i, j] != matchValue)
+        if (!roundActive)
         {
             return;
         }
 
-        component.Add((i, j));
-        int value = boardData[i, j];
-
-        DFS(matchValue, i - 1, j, ref component);
-        DFS(matchValue, i + 1, j, ref component);
-        DFS(matchValue, i, j - 1, ref component);
-        DFS(matchValue, i, j + 1, ref component);
-    }
-    void FillData()
-    {
-        Debug.Log("[Game] : FillData");
-        var xCount = PositionHelper.instance.XCount;
-        var yCount = PositionHelper.instance.YCount;
-
-        int maxColorCount = MaxColorCount;
-
-        for (int i = 0; i < xCount; i++)
+        SetTimer(Mathf.Max(0f, remainingSeconds - Time.deltaTime));
+        if (remainingSeconds <= 0f)
         {
-            BlockData[] data = new BlockData[yCount];
-            var dropCount = 0;
-            for (int j = yCount-1; j >= 0; j--)
-            {
-                if (boardData[i, j] == 0) // when empty
-                {
-                    int index = j;
-
-                    while (index >= 0 && boardData[i, index] == 0) // back up to empty index
-                    {
-                        index--;
-                        dropCount++;
-                    }
-
-                    if (index >= 0 && boardData[i, index] > 0) // Drop from top to bottom if the top is filled with something
-                    {
-                        for (int dropIndex = index; dropIndex >= 0; dropIndex--)
-                        {
-                            boardData[i, j - (index - dropIndex)] = boardData[i, dropIndex];
-                        }
-
-                        for (int others = j - (index + 1); others >= 0; others--)
-                        {
-                            boardData[i, others] = Random.Range(1, maxColorCount + 1);
-                        }
-                    }
-                    else
-                    {
-                        boardData[i, j] = Random.Range(1, maxColorCount + 1);
-                    }
-                }
-
-                BlockData block = new BlockData();
-                block.x = i;
-                block.y = j;
-                block.colorIndex = boardData[i, j];
-                block.dropHeight = dropCount;
-                data[j] = block;
-
-                if (maxHeight < dropCount) { maxHeight = dropCount; }
-            }
-
-            blocks[i].FillData(data);
-        }
-
-        if(maxHeight > 0)
-        {
-            StartCoroutine(IEDrop(maxHeight));
+            roundActive = false;
+            alphaScreen.SetActive(true);
+            objGameOver.SetActive(true);
         }
     }
-    void InitData()
+
+    public void OnClickRetry()
     {
-        Debug.Log("[GAME] : InitData()");
-
-        var xCount = PositionHelper.instance.XCount;
-        var yCount = PositionHelper.instance.YCount;
-
-        var count = MaxColorCount;
-        for (var i = 0; i < xCount; ++i)
+        if (boardData == null || roundActive || startingRound)
         {
-            var data = new BlockData[yCount];
-
-            for (var j = yCount-1; j >= 0; --j)
-            {
-                boardData[i, j] = Random.Range(1, count + 1);
-
-                var block = new BlockData();
-                block.x = i;
-                block.y = j;
-                block.colorIndex = boardData[i, j];
-                block.dropHeight = 9;
-                data[j] = block;
-            }
-            blocks[i].FillData(data);
+            return;
         }
 
-        StartCoroutine(IEDrop(maxHeight));
-    }
-    void AddScores(int count)
-    {
-        var value = count - 3;
-        if(value < 0) { return; }
-        var added = 0;
-        for (int i = value; i > 0; --i)
-        {
-            added += value;
-        }
-        
-        Score = score + 10 + added;
-        //Debug.Log($"[GAME] : Current Added Score : Count '{count}' :: AddedScore :: {10 + added}");
-    }
-    void AddTimer(int count)
-    {
-        var value = count - 2;
-        TimeSeconds = timeSeconds > time + value ? time + value: timeSeconds;
-    }
-    IEnumerator IEStartGame()
-    {
-        yield return new WaitUntil(() => ColorHelper.Instance.IsColorFilled);
+        StopAllCoroutines();
+        startingRound = true;
+        resolvingBoard = true;
+        previousClickMatched = false;
+        alphaScreen.SetActive(true);
+        screen.gameObject.SetActive(false);
+        objGameOver.SetActive(false);
 
         Score = 0;
         Grade = minGrade;
-        maxHeight = 9;
-        InitData();
+        ShowScore?.Invoke(Score);
+        ShowGrade?.Invoke(Grade);
+        SetTimer(timeSeconds);
+        StartCoroutine(StartRound());
+    }
+
+    public void Check((int x, int y) position)
+    {
+        if (!CanPlay)
+        {
+            return;
+        }
+
+        var group = MatchRules.FindGroup(boardData, position.x, position.y);
+        if (group.Count < MatchRules.MinimumGroupSize)
+        {
+            previousClickMatched = false;
+            return;
+        }
+
+        resolvingBoard = true;
+        alphaScreen.SetActive(true);
+        if (previousClickMatched)
+        {
+            SetTimer(Mathf.Min(timeSeconds, remainingSeconds + MatchRules.GetTimeBonus(group.Count)));
+        }
+        previousClickMatched = true;
+
+        Score += MatchRules.GetScore(group.Count);
+        ShowScore?.Invoke(Score);
+        foreach (var cell in group)
+        {
+            boardData[cell.x, cell.y] = 0;
+            blocks[cell.x].blocks[cell.y].Pop();
+        }
+
+        StartCoroutine(RefillBoard());
+    }
+
+    IEnumerator StartRound()
+    {
+        RollBoard();
+        yield return WaitForDrop();
+        startingRound = false;
+        roundActive = true;
+        FinishDrop();
+    }
+
+    void RollBoard()
+    {
+        int width = boardData.GetLength(0);
+        int height = boardData.GetLength(1);
+        for (int x = 0; x < width; x++)
+        for (int y = 0; y < height; y++)
+        {
+            boardData[x, y] = NextColor();
+        }
+
+        MatchRules.EnsureMatch(boardData);
+        for (int x = 0; x < width; x++)
+        for (int y = 0; y < height; y++)
+        {
+            blocks[x].blocks[y].Show(boardData[x, y], height);
+        }
+    }
+
+    IEnumerator RefillBoard()
+    {
         yield return null;
 
-        screen.gameObject.SetActive(false);
-        objGameOver.SetActive(false);
-        TimeSeconds = timeSeconds;
-        yield return StartCoroutine(IETimer());
-    }
-    IEnumerator IEDrop(int height)
-    {
-        var drop = true;
-        while (drop)
+        // Neighbors cycle within the palette that was active when the player clicked.
+        foreach (var cell in MatchRules.CycleNeighbors(boardData, MaxColorCount))
         {
-            drop = false;
-            foreach(HBlocks b in blocks)
+            blocks[cell.x].blocks[cell.y].ChangeSprite(boardData[cell.x, cell.y]);
+        }
+
+        int nextGrade = MatchRules.GetGrade(Score, minGrade, maxGrade);
+        if (Grade != nextGrade)
+        {
+            Grade = nextGrade;
+            ShowGrade?.Invoke(Grade);
+        }
+
+        yield return null;
+
+        int width = boardData.GetLength(0);
+        int height = boardData.GetLength(1);
+        for (int x = 0; x < width; x++)
+        {
+            var dropHeights = MatchRules.RefillColumn(boardData, x, NextColor);
+            for (int y = 0; y < height; y++)
             {
-                if (!b.isDropped())
+                if (dropHeights[y] > 0)
                 {
-                    drop = true;
+                    blocks[x].blocks[y].Show(boardData[x, y], dropHeights[y]);
                 }
             }
-            yield return null;
         }
 
-        //// 1 - 9  // 0.9 - 0.1
-        //// set height
-        //var HValue = (float)(10 - height) * 0.1f;
-
-        //// animation
-        //float timeValue = HValue * DropTime;
-        ////Debug.Log($"[Block] : HEIGHT :: {height} :: HVALUE :: {HValue} :: timevalue {timeValue}");
-
-        //while (DropTime > timeValue)
-        //{
-        //    timeValue += Time.deltaTime;
-        //    if (timeValue >= DropTime) { timeValue = DropTime; }
-        //    yield return null;
-        //}
-
-        //maxHeight = 0;
-
-        //yield return null;
-
-        if (!CheckMatch())
+        yield return WaitForDrop();
+        if (roundActive && !MatchRules.HasMatch(boardData))
         {
-            //yield return new WaitForSeconds(DropTime);
-            InitData();
+            RollBoard();
+            yield return WaitForDrop();
         }
-        else
-        {
-            alphaScreen.SetActive(false);
-        }
+        FinishDrop();
     }
-    IEnumerator IEPop()
-    {
-        yield return null;
 
-        ChangeColor();
-        yield return null;
-        CheckUpgrade(score);
+    int NextColor() => Random.Range(1, MaxColorCount + 1);
 
-        FillData();
-    }
-    IEnumerator IETimer()
+    IEnumerator WaitForDrop()
     {
-        Debug.Log($"IETimer() {TimeSeconds}");
-        while (TimeSeconds > 0)
+        yield return new WaitUntil(() =>
         {
-            yield return new WaitForSeconds(1f);
-            TimeSeconds--;
-            Debug.Log($"Remain :: {TimeSeconds}");
+            foreach (var column in blocks)
+            foreach (var block in column.blocks)
+            {
+                if (!block.CheckDropEnd())
+                {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    void FinishDrop()
+    {
+        resolvingBoard = false;
+        alphaScreen.SetActive(!roundActive);
+    }
+
+    void SetTimer(float seconds)
+    {
+        remainingSeconds = seconds;
+        int displaySeconds = Mathf.CeilToInt(seconds);
+        if (TimeSeconds != displaySeconds)
+        {
+            TimeSeconds = displaySeconds;
+            ShowTimer?.Invoke(TimeSeconds);
         }
-        objGameOver.SetActive(true);
     }
 }
