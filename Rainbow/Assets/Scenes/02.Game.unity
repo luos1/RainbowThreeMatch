@@ -2530,7 +2530,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   boom: {fileID: 100000, guid: 83cd9cc9f9c88824ba18dc59b05ae328, type: 3}
-  click: {fileID: 0}
 --- !u!1 &378803651
 GameObject:
   m_ObjectHideFlags: 0
@@ -10738,6 +10737,7 @@ GameObject:
   - component: {fileID: 1586888030}
   - component: {fileID: 1586888029}
   - component: {fileID: 1586888031}
+  - component: {fileID: 1586888032}
   m_Layer: 5
   m_Name: Game Panel
   m_TagString: Untagged
@@ -10826,6 +10826,7 @@ MonoBehaviour:
   screen: {fileID: 1890289025}
   alphaScreen: {fileID: 134201662}
   objGameOver: {fileID: 1864685750}
+  matchBurst: {fileID: 1586888032}
   minGrade: 0
   timeSeconds: 60
   blocks:
@@ -10884,6 +10885,20 @@ MonoBehaviour:
     - {fileID: 1021787724}
     - {fileID: 920710788}
     - {fileID: 558494241}
+--- !u!114 &1586888032
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1586888027}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e0d96cb3d8f4356bf77d0a495114b28, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  board: {fileID: 1904082071}
+  particles: {fileID: 363877479}
 --- !u!1 &1635721102
 GameObject:
   m_ObjectHideFlags: 0

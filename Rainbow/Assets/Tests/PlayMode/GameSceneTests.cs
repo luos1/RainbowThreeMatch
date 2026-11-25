@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -92,6 +93,78 @@ public class GameSceneTests
             Time.timeScale = timeScale;
             Random.state = randomState;
         }
+    }
+
+    [UnityTest]
+    public IEnumerator BurstIsBoundedAndClearsWhenRoundEnds()
+    {
+        yield return SceneManager.LoadSceneAsync("02.Game");
+        var game = Game.instance;
+        yield return WaitFor(() => game.CanPlay, "initial drop");
+        var board = (RectTransform)game.transform.Find("Game");
+        var restingPosition = board.anchoredPosition;
+        var match = FindMatch(ReadBoard(game));
+        ClickVisibleButton(game.blocks[match.x].blocks[match.y].GetComponent<Button>());
+
+        var burst = board.Find("Match Burst");
+        Assert.That(burst, Is.Not.Null, "a match creates a board-only visual layer");
+        var graphics = burst.GetComponentsInChildren<Graphic>();
+        Assert.That(graphics.Length, Is.InRange(match.count + 5, 84));
+        Assert.That(Array.TrueForAll(graphics, graphic => !graphic.raycastTarget), Is.True);
+        Assert.That(game.Score, Is.EqualTo(MatchRules.GetScore(match.count)));
+
+        yield return new WaitForSecondsRealtime(.7f);
+        Assert.That(burst.GetComponentsInChildren<Graphic>(), Is.Empty);
+        Assert.That(board.anchoredPosition, Is.EqualTo(restingPosition));
+        yield return WaitFor(() => game.CanPlay, "refill before timeout");
+        match = FindMatch(ReadBoard(game));
+        ClickVisibleButton(game.blocks[match.x].blocks[match.y].GetComponent<Button>());
+        Assert.That(burst.GetComponentsInChildren<Graphic>(), Is.Not.Empty);
+        var particles = Object.FindObjectOfType<Sfx>().transform;
+        Assert.That(particles.GetComponentsInChildren<ParticleSystem>(), Has.Length.EqualTo(1));
+
+        typeof(Game).GetField("remainingSeconds", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(game, 0f);
+        yield return WaitFor(() => game.TimeSeconds == 0, "timeout during burst");
+        Assert.That(burst.GetComponentsInChildren<Graphic>(), Is.Empty);
+        Assert.That(particles.GetComponentsInChildren<ParticleSystem>(), Is.Empty);
+        Assert.That(board.anchoredPosition, Is.EqualTo(restingPosition));
+
+        game.OnClickRetry();
+        yield return WaitFor(() => game.CanPlay, "retry");
+        Assert.That(board.Find("Match Burst"), Is.Null);
+        Assert.That(game.Score, Is.Zero);
+        Assert.That(game.TimeSeconds, Is.EqualTo(60));
+        Assert.That(board.anchoredPosition, Is.EqualTo(restingPosition));
+    }
+
+    [UnityTest]
+    public IEnumerator LargerAndChainedBurstsAddLayersWithoutLeavingSceneObjects()
+    {
+        yield return SceneManager.LoadSceneAsync("02.Game");
+        var game = Game.instance;
+        yield return WaitFor(() => game.CanPlay, "initial drop");
+        var effect = game.GetComponent<MatchBurst>();
+        var board = game.transform.Find("Game");
+        var small = new List<(int, int)> { (2, 4), (2, 3), (2, 5) };
+        effect.Play(game.blocks, small, (2, 4), false);
+        var burst = board.Find("Match Burst");
+        int regular = burst.childCount;
+        effect.Play(game.blocks, small, (2, 4), true);
+        int chained = burst.childCount;
+        Assert.That(chained, Is.GreaterThan(regular));
+
+        var fullBoard = new List<(int, int)>();
+        for (int x = 0; x < game.blocks.Length; x++)
+        for (int y = 0; y < game.blocks[x].blocks.Length; y++)
+            fullBoard.Add((x, y));
+        effect.Play(game.blocks, fullBoard, (2, 4), true);
+        Assert.That(burst.childCount, Is.InRange(chained + 1, 84));
+        Assert.That(Array.Exists(burst.GetComponentsInChildren<Image>(), image => image.sprite.name == "Match ring"), Is.True);
+        Assert.That(game.CanPlay, Is.True, "presentation does not block input");
+        Assert.That(game.Score, Is.Zero, "presentation does not score the board");
+
+        yield return SceneManager.LoadSceneAsync("00.Loading");
+        Assert.That(burst == null, Is.True, "the scene owns all effect objects");
     }
 
     static IEnumerator WaitFor(Func<bool> condition, string phase, float timeout = 5f)

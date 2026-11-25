@@ -8,6 +8,7 @@ public class Block : MonoBehaviour
     [SerializeField] AnimationBlock anim;
     public Color Color => color;
     public Sprite Sprite => icon.sprite;
+    internal RectTransform VisualRect => icon.rectTransform;
     public int colorIndex { get; private set; }
 
     Color color = Color.white;
@@ -52,7 +53,7 @@ public class Block : MonoBehaviour
     public void Pop()
     {
         colorIndex = 0;
-        anim.Pop(color);
+        anim.Pop();
     }
     public void Show(int index, int height)
     {

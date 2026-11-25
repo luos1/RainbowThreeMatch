@@ -12,11 +12,10 @@ public class AnimationBlock : MonoBehaviour
     Tween dropTween;
     public bool IsDropping => dropTween != null && dropTween.IsActive();
 
-    public void Pop(Color color)
+    public void Pop()
     {
         ResetAnimation(0f);
         gameObject.SetActive(false);
-        Sfx.Instnace.Pop(transform.position, color);
     }
 
     public void Drop(int height)
