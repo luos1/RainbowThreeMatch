@@ -27,6 +27,7 @@ public class Game : MonoBehaviour
     [SerializeField] GameObject alphaScreen;
     [SerializeField] GameObject objGameOver;
     [SerializeField] MatchBurst matchBurst;
+    [SerializeField] MatchFeedbackPanel matchFeedback;
     public HBlocks[] blocks;
 
     public event Action<int> ShowScore;
@@ -101,6 +102,7 @@ public class Game : MonoBehaviour
 
         Score = 0;
         Grade = minGrade;
+        matchFeedback?.ResetRound(MaxColorCount);
         ShowScore?.Invoke(Score);
         ShowGrade?.Invoke(Grade);
         SetTimer(timeSeconds);
@@ -118,9 +120,12 @@ public class Game : MonoBehaviour
         if (group.Count < MatchRules.MinimumGroupSize)
         {
             previousClickMatched = false;
+            if (group.Count > 0)
+                matchFeedback?.ShowFailure(boardData[position.x, position.y], group.Count);
             return;
         }
 
+        matchFeedback?.StartMatch(boardData[position.x, position.y], group.Count);
         resolvingBoard = true;
         alphaScreen.SetActive(true);
         bool chained = previousClickMatched;
@@ -174,9 +179,13 @@ public class Game : MonoBehaviour
         yield return null;
 
         // Neighbors cycle within the palette that was active when the player clicked.
-        foreach (var cell in MatchRules.CycleNeighbors(boardData, MaxColorCount))
+        var changed = MatchRules.CycleNeighbors(boardData, MaxColorCount);
+        foreach (var cell in changed)
         {
-            blocks[cell.x].blocks[cell.y].ChangeSprite(boardData[cell.x, cell.y]);
+            var block = blocks[cell.x].blocks[cell.y];
+            int nextColor = boardData[cell.x, cell.y];
+            matchFeedback?.RecordTransition(block.colorIndex, nextColor);
+            block.ChangeSprite(nextColor);
         }
 
         int nextGrade = MatchRules.GetGrade(Score, minGrade, maxGrade);
@@ -185,6 +194,7 @@ public class Game : MonoBehaviour
             Grade = nextGrade;
             ShowGrade?.Invoke(Grade);
         }
+        matchFeedback?.FinishMatch(changed.Count, MaxColorCount);
 
         yield return null;
 

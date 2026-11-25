@@ -10738,6 +10738,7 @@ GameObject:
   - component: {fileID: 1586888029}
   - component: {fileID: 1586888031}
   - component: {fileID: 1586888032}
+  - component: {fileID: 1586888033}
   m_Layer: 5
   m_Name: Game Panel
   m_TagString: Untagged
@@ -10827,6 +10828,7 @@ MonoBehaviour:
   alphaScreen: {fileID: 134201662}
   objGameOver: {fileID: 1864685750}
   matchBurst: {fileID: 1586888032}
+  matchFeedback: {fileID: 1586888033}
   minGrade: 0
   timeSeconds: 60
   blocks:
@@ -10899,6 +10901,22 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   board: {fileID: 1904082071}
   particles: {fileID: 363877479}
+--- !u!114 &1586888033
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1586888027}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7525b97d59ee433aa391851541d746f5, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  board: {fileID: 1904082071}
+  hud: {fileID: 869415200}
+  oldPalette: {fileID: 835987983}
+  koreanFont: {fileID: 12800000, guid: e00ffe8e54a34d26a1d0039abbc050d7, type: 3}
 --- !u!1 &1635721102
 GameObject:
   m_ObjectHideFlags: 0
