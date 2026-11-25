@@ -50,27 +50,10 @@ exercise linking and conflict recovery before release.
 
 ## Firestore security boundary
 
-The first ruleset is owner-only and monotonic for the score. `request.resource`
-is the proposed document state, allowing the update comparison. Production
-rules must also restrict fields and timestamp types.
-
-```rules
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow create: if request.auth != null && request.auth.uid == uid
-                    && request.resource.data.highScore is int
-                    && request.resource.data.highScore >= 0;
-      allow update: if request.auth != null && request.auth.uid == uid
-                    && request.resource.data.highScore is int
-                    && request.resource.data.highScore >= resource.data.highScore;
-      allow delete: if false;
-    }
-  }
-}
-```
+[`firestore.rules`](../firestore.rules) limits document reads and writes to
+the UID in the Firebase session. It restricts field names and types, blocks
+deletes, and compares the proposed document to the stored score and timestamp
+on updates.
 
 Cloud save uses a Firestore transaction: `highScore = max(local, cloud)`;
 non-score fields choose newest `updatedAt`. Rules are access control, not
@@ -79,7 +62,8 @@ anti-cheat.
 ## Spark constraints
 
 Use a dedicated Rainbow project on **Spark only**. Google and anonymous Auth
-are no-cost options. One Firestore database gets 50,000 reads/day, 20,000
+are no-cost options. Auth limits new accounts to 100 per hour per IP by
+default, which matters for shared test networks. [Authentication limits](https://firebase.google.com/docs/auth/limits) One Firestore database gets 50,000 reads/day, 20,000
 writes/day, 20,000 deletes/day, 1 GiB storage and 10 GiB/month outbound data.
 If a Spark quota is exceeded, that product is disabled until the next cycle;
 there is no paid overage. Linking a Cloud Billing account upgrades the whole
@@ -91,8 +75,7 @@ backend are explicitly out of scope.
 Pin **14.2.0** for every Firebase Unity package. The official archive lists it
 for Unity 2022.1+; release notes set Unity 2022 LTS, Android API 24+ and iOS
 15+ as the current major-version floor. This project uses Unity 2022.3.8f1,
-but its Android minimum API 22 must be raised before an SDK-enabled Android
-build.
+with Android minimum API 24 and iOS target 15.
 
 The downloaded tarballs below were checked on 2026-11-26: their package
 manifests identify the stated versions and their SHA-256 hashes are recorded in
@@ -112,12 +95,11 @@ Use UPM tarballs in this order and do not mix them with Firebase
 
 The official docs do not publish a stable installed-size budget per product.
 Do not invent one; after dependency resolution, record the AAB/APK and iOS
-archive deltas. The committed Unity manifest pins the official HTTPS tarball
-URLs, which makes a clean clone reproducible without vendoring large binaries.
-The ignored `Rainbow/FirebasePackages/` directory is only a local download cache.
-If the packages cannot be downloaded, compile with `RAINBOW_FIREBASE` absent and
-use fakes; the import document states how to restore the exact tarballs before
-device cloud login.
+archive deltas. Unity 2022.3 rejects HTTPS tarballs as manifest dependency
+values. The import script verifies all four SHA-256 hashes and inserts
+relative `file:../FirebasePackages/...` references into the local manifest.
+The Git manifest supports Unity import and tests when download is unavailable.
+See [SDK import](firebase-sdk-import.md) for the local enable/disable steps.
 
 The Firebase packages declare their dependency on the pinned EDM4U package.
 That EDM4U package manifest currently marks itself deprecated in favour of a

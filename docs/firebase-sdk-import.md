@@ -9,10 +9,12 @@ part of this import.
 ## Verified package set
 
 The following official Google Unity Package Manager archives were fetched and
-their package manifests and SHA-256 values checked on 2026-11-26. The committed
-`Rainbow/Packages/manifest.json` pins the exact official HTTPS URLs, so a clean
-clone resolves the same package set. `Rainbow/FirebasePackages/` is an ignored
-local download cache only and is intentionally absent from Git.
+their package manifests and SHA-256 values checked on 2026-11-26. The
+tracked `scripts/fetch-firebase-sdk.py` verifies each SHA-256, then adds local
+`file:../FirebasePackages/...` manifest references. Unity 2022.3 rejected
+HTTPS tarball values in this project. The manifest in Git has no Firebase
+entries so a clean checkout can open without the optional SDK. The package
+archives and all project configuration stay local.
 
 | Archive | Version | SHA-256 |
 | --- | --- | --- |
@@ -36,21 +38,18 @@ separate EDM4U `.unitypackage` alongside these tarballs.
 
 ## Import procedure
 
-1. Open the cloned project in Unity 2022.3.8f1. Unity Package Manager resolves
-   the four HTTPS-pinned entries in `Rainbow/Packages/manifest.json`; no manual
-   `file:` dependency is needed or should be committed.
-2. Reopen after resolution and confirm the Console has no duplicate Google
-   Sign-In, Gradle-template, or iOS resolver errors.
-3. `Rainbow.Game.asmdef` enables `RAINBOW_FIREBASE` only when the pinned
-   Firestore package is present. If Package Manager cannot resolve it, the
-   guarded implementation remains excluded and fake-based tests still compile.
-4. To repair an offline resolution failure, fetch the exact four archives above
-   into ignored `Rainbow/FirebasePackages/`, check their hashes, then use
-   Package Manager's **Add package from tarball** in the listed order. Do not
-   change the committed HTTPS pins to local paths.
-5. When the owner supplies them, place `google-services.json` and/or
-   `GoogleService-Info.plist` locally as Firebase specifies. They stay ignored;
-   verify with `git status --ignored` that they cannot enter a commit.
+1. Close the Unity project and run `python3 scripts/fetch-firebase-sdk.py` from
+   the repository root. It adds the relative tarball dependencies only after
+   all four hashes pass. If downloading fails, the manifest remains as it was.
+2. Open `Rainbow/` in Unity 2022.3.8f1. Confirm Package Manager resolved all
+   four archives and check for native dependency or Gradle-template errors.
+3. The Firestore UPM version defines `RAINBOW_FIREBASE` in `Rainbow.Game`.
+   For a local-only checkout, leave the script unrun or close Unity and run
+   `python3 scripts/fetch-firebase-sdk.py --disable`. Reopen Unity to refresh
+   the package lock. Keep the SDK-enabled manifest and lock changes local.
+4. For real Firebase builds, put the appropriate owner-provided configuration
+   file at the root of `Rainbow/Assets/`. Unity/Firebase generate additional
+   platform files from it. Git ignores the config and generated desktop copy.
 
 Firebase's current official Unity Google Sign-In guide describes a different
 `GoogleSignInNative` package which includes Credential Manager dependencies.
@@ -62,8 +61,8 @@ sign-in UI, and its ID token is the input to
 
 Firebase Unity 14.2.0 is current as of 2026-11-26. Firebase 14.0.0 requires
 Unity 2022.3+ and Android `minSdkVersion` 24; this Unity project meets the
-editor requirement but its Android minimum level must be updated before an
-SDK-enabled APK. Firebase 13 raised the iOS minimum deployment target to 15.
+editor and Android requirements. Firebase 13 raised the iOS minimum
+deployment target to 15, which this project sets for Firebase compatibility.
 Firebase's standalone GoogleSignInNative guide currently asks for Android API
 34, but it is excluded for the UniversalSDK compatibility reason above.
 
