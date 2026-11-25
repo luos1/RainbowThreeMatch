@@ -19,6 +19,18 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
     [SerializeField] Font koreanFont;
 
     readonly Swatch[] swatches = new Swatch[7];
+    readonly Image[] abilityIcons = new Image[7];
+    TabletScene tablet;
+    internal Font DisplayFont => koreanFont;
+    internal void UseTablet(TabletScene mode) => tablet = mode;
+    internal void ShowTabletResult(string message) => status.text = message;
+
+    internal void SetPalette(int count)
+    {
+        activeColors = count;
+        RefreshPalette();
+    }
+
     readonly Text[] arrows = new Text[6];
     readonly int[] transitions = new int[8];
     readonly bool[] destinations = new bool[8];
@@ -117,6 +129,8 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
             bool available = i < activeColors;
             swatches[i].Icon.color = new Color(1f, 1f, 1f, available ? 1f : .38f);
             swatches[i].Name.color = available ? Color.white : SecondaryText;
+            if (abilityIcons[i] != null)
+                abilityIcons[i].color = new Color(1, 1, 1, available ? 1f : .3f);
             if (i < arrows.Length)
                 arrows[i].color = i + 1 < activeColors ? SecondaryText : new Color32(146, 163, 193, 255);
         }
@@ -142,7 +156,9 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         }
     }
 
-    void OnDisable()
+    void OnDisable() => StopPulse();
+
+    internal void StopPulse()
     {
         foreach (var swatch in swatches)
         {
@@ -159,6 +175,8 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         canvas = GetComponentInParent<Canvas>();
         matchBurst = GetComponent<MatchBurst>();
         FitBoardTouchTargets();
+        if (tablet != null && hud.TryGetComponent<Image>(out var hudImage))
+            hudImage.color = PanelColor;
         oldPalette.SetActive(false);
         panel = RectFor(transform, "Match Feedback", new Vector2(0f, 0f), Vector2.one);
         panel.SetSiblingIndex(board.GetSiblingIndex() + 1);
@@ -182,6 +200,13 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
             var icon = MakeImage(slot, "Color icon", .15f, .36f, .85f, .9f, Color.white);
             icon.sprite = ColorHelper.Instance.GetPaletteSprite(i);
             icon.preserveAspect = true;
+            if (tablet != null)
+            {
+                var ability = MakeImage(slot, "Combat role", .52f, .35f, .99f, .68f, Color.white);
+                ability.sprite = tablet.GetAbilityIcon(i + 1);
+                ability.preserveAspect = true;
+                abilityIcons[i] = ability;
+            }
             var from = MakeImage(slot, "Previous color", .15f, .91f, .85f, .96f, SourceColor);
             var to = MakeImage(slot, "Next color", .15f, .30f, .85f, .345f, DestinationColor);
             var label = MakeText(slot, "Color name", ColorNames[i + 1], 0f, 0f, 1f, .305f, 35, Color.white, TextAnchor.MiddleCenter);
@@ -231,6 +256,8 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         label.fontSizeMin = 32f;
         label.fontSizeMax = 44f;
         label.raycastTarget = false;
+        if (tablet != null)
+            label.color = Color.white;
     }
 
     void LateUpdate()
@@ -248,6 +275,8 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screen.min, canvas.worldCamera, out var low);
         RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screen.max, canvas.worldCamera, out var high);
         var safe = Rect.MinMaxRect(low.x, low.y, high.x, high.y);
+        if (tablet != null)
+            safe.width *= TabletScene.PuzzleWidth;
         if (safe == previousSafe || safe.width < 1f || safe.height < 1f)
             return;
         previousSafe = safe;

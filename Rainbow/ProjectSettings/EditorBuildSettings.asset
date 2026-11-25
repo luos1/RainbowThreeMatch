@@ -14,6 +14,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/02.Game.unity
     guid: d5fb7bce6c6804fc4a42432d624aeda7
+  - enabled: 1
+    path: Assets/Scenes/03.TabletPuzzleShooter.unity
+    guid: e1e4dedd70204999a59e30bfa3e14db6
   m_configObjects:
     com.unity.adaptiveperformance.loader_settings: {fileID: 11400000, guid: 9888d269311c247d7be56b31f8a89f05, type: 2}
     com.unity.adaptiveperformance.simulator.provider_settings: {fileID: 11400000, guid: b3f846ef8db66449da90e4d2e421de5b, type: 2}

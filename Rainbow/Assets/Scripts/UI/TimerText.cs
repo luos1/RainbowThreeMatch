@@ -16,6 +16,11 @@ public class TimerText : MonoBehaviour
     public void ShowTimer(int time)
     {
         //Debug.Log($"Show Timer : {time}");
+        if (Game.instance.IsTablet)
+        {
+            text.text = $"{time / 60}:{time % 60:00}";
+            return;
+        }
         text.text = $"{strTimer}{time}";
     }
 }

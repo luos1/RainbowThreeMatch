@@ -34,6 +34,8 @@ public class AnimationBlock : MonoBehaviour
         transform.DOPunchScale(Vector3.one * upScale, upScaleDuration, 3);
     }
 
+    internal void Settle() => ResetAnimation(0);
+
     void OnDestroy()
     {
         transform.DOKill();
