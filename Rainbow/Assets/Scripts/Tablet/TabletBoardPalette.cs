@@ -117,7 +117,7 @@ public partial class Game
         }
 
         lastTabletMissFrame = Time.frameCount;
-        var outcome = tablet.Combat.RegisterMiss();
+        var outcome = tablet.RegisterMiss();
         matchFeedback.ShowTabletMiss(boardData[position.x, position.y], connected, outcome);
         UpdateTabletBoardGuidance();
         return true;

@@ -92,6 +92,7 @@ internal sealed partial class TabletView
         for (int i = 0; i < burstSprites.Length; i++)
             burstSprites[i] = Entity("Burst " + (i + 1), explosions[0]);
         BuildDefenseVisuals();
+        BuildReinforcementWarning();
 
         var footer = Graphic(pane, "Combat status", .027f, 0, 1, .064f, Hull).rectTransform;
         shotsText = Label(footer, "Shot totals", .043f, .13f, .96f, .86f, 37, Secondary);
@@ -198,6 +199,7 @@ internal sealed partial class TabletView
         }
 
         RenderDefenseVisuals(state, unit);
+        RenderReinforcementWarning(state);
         RenderSortieEffects(state, unit);
     }
 

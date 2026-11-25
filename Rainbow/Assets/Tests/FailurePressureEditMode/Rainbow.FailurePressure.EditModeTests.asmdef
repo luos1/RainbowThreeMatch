@@ -1,0 +1,6 @@
+{
+    "name": "Rainbow.FailurePressure.EditModeTests",
+    "references": ["Rainbow.Game"],
+    "includePlatforms": ["Editor"],
+    "optionalUnityReferences": ["TestAssemblies"]
+}

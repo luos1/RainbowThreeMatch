@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
@@ -132,7 +133,7 @@ public class TabletSceneTests
         var source = Object.FindObjectOfType<Sfx>().GetComponent<AudioSource>();
         for (int run = 0; run < 2; run++)
         {
-            yield return QueueReinforcementsAndAnotherMiss(game, combat);
+            yield return DeployReinforcementsAndMissAgain(game, combat);
             combat.Advance(60);
             yield return null;
             Assert.That(combat.Result, Is.EqualTo(TabletResult.Failed));
@@ -157,7 +158,7 @@ public class TabletSceneTests
             Assert.That(combat.PlannedEnemies, Is.EqualTo(TabletCombat.EnemyCount));
             Assert.That(combat.ReinforcementsArrived, Is.Zero);
         }
-        yield return QueueReinforcementsAndAnotherMiss(game, combat);
+        yield return DeployReinforcementsAndMissAgain(game, combat);
         yield return SceneManager.LoadSceneAsync("02.Game");
         Assert.That(source == null, Is.True);
         Assert.That(Object.FindObjectOfType<TabletScene>(), Is.Null);
@@ -169,16 +170,17 @@ public class TabletSceneTests
         Assert.That(Object.FindObjectsOfType<AudioSource>(), Has.Length.EqualTo(1));
     }
 
-    static IEnumerator QueueReinforcementsAndAnotherMiss(Game game, TabletCombat combat)
+    static IEnumerator DeployReinforcementsAndMissAgain(Game game, TabletCombat combat)
     {
         AddLegalMatchAwayFromTheTestedPair(game);
+        int arrived = combat.ReinforcementsArrived;
         for (int i = 0; i < 4; i++)
         {
             game.Check((0, 0));
             yield return null;
         }
         Assert.That(combat.FailureStreak, Is.EqualTo(1));
-        Assert.That(combat.ReinforcementsPending, Is.EqualTo(5));
+        Assert.That(combat.ReinforcementsPending + combat.ReinforcementsArrived - arrived, Is.EqualTo(5));
     }
 
     [UnityTest]
@@ -315,29 +317,61 @@ public class TabletSceneTests
     }
 
     [UnityTest]
-    public IEnumerator ThreeLegalMissesDoubleTheNextVisibleSmallFormation()
+    public IEnumerator ThreeLegalMissesDeployTenShipsBeforeTheOldSchedule()
     {
         yield return OpenTablet();
         var game = Game.instance;
         var combat = game.GetComponent<TabletScene>().Combat;
+        combat.Advance(1);
         var board = AddLegalMatchAwayFromTheTestedPair(game);
         Assert.That(MatchRules.HasMatch(board), Is.True);
-        for (int tap = 0; tap < 3; tap++)
+        var block = game.blocks[0].blocks[0].GetComponent<Button>();
+        for (int tap = 0; tap < 2; tap++)
         {
-            Assert.That(Tap(game.blocks[0].blocks[0].GetComponent<Button>()), Is.True, lastRaycast);
-            if (tap < 2)
-                Assert.That(GameObject.Find("Tablet miss status").GetComponent<Text>().text, Does.Contain($"{tap + 1}/3"));
+            Assert.That(Tap(block), Is.True, lastRaycast);
+            Assert.That(GameObject.Find("Tablet miss status").GetComponent<Text>().text, Does.Contain($"{tap + 1}/3"));
             yield return null;
         }
+        Assert.That(combat.Enemies.Count(enemy => enemy.Spawned), Is.EqualTo(5));
+        float timeBeforeTap = combat.Elapsed;
+        Assert.That(Tap(block), Is.True, lastRaycast);
         Assert.That(combat.FailureStreak, Is.Zero);
-        Assert.That(combat.ReinforcementsPending, Is.EqualTo(5));
-        combat.Advance(8.2 - combat.Elapsed);
-        int count = 0;
-        foreach (var enemy in combat.Enemies)
-            if (enemy.Spawned && enemy.Style != 2) count++;
-        Assert.That(count, Is.EqualTo(15), "The opening five plus two copies of the next five must physically spawn.");
+        Assert.That(combat.Elapsed, Is.EqualTo(timeBeforeTap));
+        Assert.That(combat.Enemies.Count(enemy => enemy.Spawned && enemy.Hp > 0), Is.EqualTo(15));
+        Assert.That(GameObject.Find("Warning message").GetComponent<Text>().text, Does.Contain("2배 투입"));
+        combat.Advance(.65);
+        Assert.That(combat.Elapsed, Is.LessThan(3));
+        Assert.That(combat.Enemies.Count(enemy => enemy.Spawned && enemy.Position.y <= 1), Is.EqualTo(15));
         Assert.That(combat.ReinforcementsArrived, Is.EqualTo(5));
         Assert.That(game.Score, Is.Zero);
+    }
+
+    [UnityTest]
+    public IEnumerator SecondMissShowsBothEntryArrowsUntilASuccessfulInput()
+    {
+        yield return OpenTablet();
+        var game = Game.instance;
+        var combat = game.GetComponent<TabletScene>().Combat;
+        AddLegalMatchAwayFromTheTestedPair(game);
+        var miss = game.blocks[0].blocks[0].GetComponent<Button>();
+        Assert.That(Tap(miss), Is.True, lastRaycast);
+        Assert.That(GameObject.Find("Reinforcement warning"), Is.Null);
+        yield return null;
+
+        Assert.That(Tap(miss), Is.True, lastRaycast);
+        var warning = GameObject.Find("Reinforcement warning");
+        Assert.That(warning, Is.Not.Null);
+        Assert.That(warning.transform.Find("Warning banner/Warning message").GetComponent<Text>().text, Does.Contain("위기 경보"));
+        var left = warning.transform.Find("Left entry/Left arrow").GetComponent<Text>();
+        var right = warning.transform.Find("Right entry/Right arrow").GetComponent<Text>();
+        Assert.That(left.text, Is.EqualTo("→"));
+        Assert.That(right.text, Is.EqualTo("←"));
+        Assert.That(left.raycastTarget || right.raycastTarget, Is.False);
+        Fill(game, 1, 3);
+        Assert.That(Tap(miss), Is.True, lastRaycast);
+        Assert.That(warning.activeSelf, Is.False);
+        Assert.That(combat.FailureStreak, Is.Zero);
+        Assert.That(combat.OfferedShots, Is.EqualTo(3));
     }
 
     [UnityTest]
