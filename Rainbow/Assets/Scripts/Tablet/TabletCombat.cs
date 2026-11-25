@@ -16,7 +16,6 @@ internal sealed partial class TabletCombat
     const float EntryTime = .66f;
     const float DiveTime = .92f;
     const float DivePeriod = 5.35f;
-    const float BossWarningTime = 1.65f;
     const float AimLead = .50f;
     const float AimRefresh = .14f;
     const float BurstTime = .22f;
@@ -30,19 +29,19 @@ internal sealed partial class TabletCombat
     // a ship at a visible firing position launches an actual projectile.
     static readonly EnemyPlan[] Plans =
     {
-        new EnemyPlan(0, 3, .41f, 2, 0, 0, true), new EnemyPlan(.18f, 4.2f, .62f, 1, 0, 0),
+        new EnemyPlan(0, 3, .41f, 2, 0, 0, true, startsFormation: true), new EnemyPlan(.18f, 4.2f, .62f, 1, 0, 0),
         new EnemyPlan(.36f, 5.6f, .24f, 1, 0, 0, true), new EnemyPlan(.54f, 6.45f, .78f, 1, 0, 0),
         new EnemyPlan(.72f, 7.3f, .50f, 1, 0, 0),
-        new EnemyPlan(7.05f, 8.6f, .70f, 1, 0, 1, true), new EnemyPlan(7.23f, 9.6f, .13f, 2, 0, 1),
+        new EnemyPlan(7.05f, 8.6f, .70f, 1, 0, 1, true, startsFormation: true), new EnemyPlan(7.23f, 9.6f, .13f, 2, 0, 1),
         new EnemyPlan(7.41f, 11, .86f, 1, 0, 1), new EnemyPlan(7.59f, 13.1f, .34f, 2, 0, 1, true),
         new EnemyPlan(7.77f, 15.4f, .55f, 1, 0, 1),
-        new EnemyPlan(18, 20.3f, .18f, 2, 1, 2), new EnemyPlan(18.17f, 21.5f, .83f, 1, 1, 2),
+        new EnemyPlan(18, 20.3f, .18f, 2, 1, 2, startsFormation: true), new EnemyPlan(18.17f, 21.5f, .83f, 1, 1, 2),
         new EnemyPlan(18.34f, 23.3f, .39f, 2, 1, 2, true), new EnemyPlan(18.51f, 26.7f, .66f, 1, 1, 2),
-        new EnemyPlan(25.8f, 29.1f, .25f, 2, 1, 2, true), new EnemyPlan(25.98f, 31.4f, .53f, 2, 1, 2),
-        new EnemyPlan(38, 40, .17f, 2, 1, 3), new EnemyPlan(38.16f, 40.8f, .82f, 1, 0, 3),
+        new EnemyPlan(25.8f, 29.1f, .25f, 2, 1, 2, true, startsFormation: true), new EnemyPlan(25.98f, 31.4f, .53f, 2, 1, 2),
+        new EnemyPlan(38, 40, .17f, 2, 1, 3, startsFormation: true), new EnemyPlan(38.16f, 40.8f, .82f, 1, 0, 3),
         new EnemyPlan(38.32f, 43, .34f, 2, 1, 3, true), new EnemyPlan(38.48f, 44.2f, .68f, 2, 1, 3, true),
-        new EnemyPlan(38.64f, 46.1f, .48f, 1, 0, 3), new EnemyPlan(43, 48, .25f, 2, 1, 3),
-        new EnemyPlan(43.18f, 49.5f, .75f, 2, 1, 3), new EnemyPlan(46.25f, 47.7f, .5f, 9, 2, BossFlight, true)
+        new EnemyPlan(38.64f, 46.1f, .48f, 1, 0, 3), new EnemyPlan(43, 48, .25f, 2, 1, 3, startsFormation: true),
+        new EnemyPlan(43.18f, 49.5f, .75f, 2, 1, 3), new EnemyPlan(46.25f, 47.7f, .5f, 9, 2, BossFlight, true, startsFormation: true)
     };
 
     readonly Queue<Volley> queue = new Queue<Volley>();
@@ -73,14 +72,11 @@ internal sealed partial class TabletCombat
             return color;
         }
     }
-    internal int Wave => Elapsed >= 38 ? 3 : Elapsed >= 18 ? 2 : 1;
     internal TabletResult Result { get; private set; }
     internal Vector2 Player { get; } = new Vector2(.5f, 0);
     internal IReadOnlyList<Shot> Shots => shots;
     internal IReadOnlyList<Enemy> Enemies => enemies;
     internal Enemy Boss => enemies[EnemyCount - 1];
-    internal bool BossApproaching => Result == TabletResult.Playing && !Boss.Spawned
-        && Elapsed >= Plans[Plans.Length - 1].Spawn - BossWarningTime;
     internal IReadOnlyList<Effect> Effects => effects;
     internal int TargetIndex => target;
     internal int PendingShots { get; private set; }
@@ -124,6 +120,7 @@ internal sealed partial class TabletCombat
         Hp = Hull = hull;
         attackPower = power;
         AwardedFlights = 0;
+        ResetPacing();
         EnemiesDefeated = OfferedShots = FiredShots = HitShots = ExpiredShots = DroppedOnEnd = BlockedDamage = LastFiredColor = 0;
         TotalDamage = 0;
         Result = TabletResult.Playing;
@@ -210,7 +207,7 @@ internal sealed partial class TabletCombat
             }
             CountVisibleReinforcement(i, ref enemy);
 
-            enemy.Warning = !enemy.Attacked && elapsed >= FireAt(plan, enemy) - HostileWarning;
+            enemy.Warning = !enemy.Attacked && elapsed >= FireAt(plan, enemy) - WarningTime(plan);
         }
 
         if (!IsTargetable(target) || elapsed >= aimUntil)
@@ -409,7 +406,7 @@ internal sealed partial class TabletCombat
     void HurtEnemy(int index, float damage, int color, Vector2 direction)
     {
         ref var enemy = ref enemies[index];
-        float dealt = Mathf.Min(enemy.Hp, damage * attackPower);
+        float dealt = Mathf.Min(enemy.Hp, damage * attackPower * DamageMultiplier(index));
         TotalDamage += dealt;
         enemy.Hp -= dealt;
         enemy.HitTime = ImpactTime;
@@ -419,6 +416,7 @@ internal sealed partial class TabletCombat
         if (destroyed)
         {
             EnemiesDefeated++;
+            ShortenFormationGap();
             if (!enemy.Reinforcement)
             {
                 int flight = roundPlans[index].Flight;
@@ -496,9 +494,9 @@ internal sealed partial class TabletCombat
     {
         internal readonly float Spawn, Attack, Lane, Hp;
         internal readonly int Style, Flight;
-        internal readonly bool Dives, Reinforcement;
+        internal readonly bool Dives, Reinforcement, StartsFormation;
         internal EnemyPlan(float spawn, float attack, float lane, float hp, int style, int flight, bool dives = false,
-            bool reinforcement = false)
+            bool reinforcement = false, bool startsFormation = false)
         {
             Spawn = spawn;
             Attack = attack;
@@ -508,6 +506,10 @@ internal sealed partial class TabletCombat
             Flight = flight;
             Dives = dives;
             Reinforcement = reinforcement;
+            StartsFormation = startsFormation;
         }
+
+        internal EnemyPlan ShiftEarlier(float seconds) =>
+            new EnemyPlan(Spawn - seconds, Attack - seconds, Lane, Hp, Style, Flight, Dives, Reinforcement, StartsFormation);
     }
 }
