@@ -11,6 +11,7 @@ internal sealed partial class TabletView
     static readonly Color Hull = new Color32(22, 39, 59, 255);
     static readonly Color Border = new Color32(48, 74, 97, 255);
     static readonly Color EnemyHealth = new Color32(255, 147, 110, 255);
+    static readonly Color FocusFireTint = new Color32(255, 231, 173, 255);
     static readonly Color[] ImpactColors =
     {
         Color.white, new Color32(255, 106, 91, 255), new Color32(255, 175, 73, 255),
@@ -178,7 +179,8 @@ internal sealed partial class TabletView
             SetActive(shotSprites[i], shot.Active);
             if (!shot.Active) continue;
             shotSprites[i].sprite = abilityArt[shot.Color];
-            Place(shotSprites[i], shot.Position, unit * .085f);
+            shotSprites[i].color = shot.Focused ? FocusFireTint : Color.white;
+            Place(shotSprites[i], shot.Position, unit * (shot.Focused ? .114f : .085f));
             Direction(shotSprites[i], shot.Direction);
         }
 

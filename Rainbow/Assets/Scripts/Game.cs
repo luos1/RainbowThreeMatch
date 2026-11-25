@@ -196,6 +196,7 @@ public partial class Game : MonoBehaviour
             previousClickMatched = false;
             if (group.Count > 0)
             {
+                tablet?.Combat.BreakMatchStreak();
                 if (tablet == null)
                 {
                     matchFeedback?.ShowFailure(boardData[position.x, position.y], group.Count);
