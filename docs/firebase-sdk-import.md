@@ -63,6 +63,9 @@ Firebase Unity 14.2.0 is current as of 2026-11-26. Firebase 14.0.0 requires
 Unity 2022.3+ and Android `minSdkVersion` 24; this Unity project meets the
 editor and Android requirements. Firebase 13 raised the iOS minimum
 deployment target to 15, which this project sets for Firebase compatibility.
+The resolved AndroidX dependency graph also requires Android compile API 34.
+The [owner setup guide](firebase-setup.md#4-verify-the-build-on-a-device) lists
+the Android build tooling for that API level.
 Firebase's standalone GoogleSignInNative guide currently asks for Android API
 34, but it is excluded for the UniversalSDK compatibility reason above.
 

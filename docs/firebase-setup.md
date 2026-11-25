@@ -29,7 +29,7 @@ The owner completes these steps in a dedicated RainbowThreeMatch project. Use Sp
 
 ## 4. Verify the build on a device
 
-1. Build a debug-signed APK with the Android module, SDK, NDK and JDK for Unity 2022.3.8f1. iOS builds require the iOS module, Xcode, supported CocoaPods resolution and the authorized signing team.
+1. Use an Android build environment with `compileSdk` 34 or higher. The Firebase dependency graph in this project includes AndroidX Credentials and DataStore artifacts that require API 34. Google's supported toolchain for API 34 starts at Android Gradle Plugin 8.1.1. The installed Unity 2022.3.8f1 Android module used API 32 and AGP 7.1.2, which failed at `:launcher:checkDebugAarMetadata`. Select a compatible Android toolchain before running the APK command. For iOS, use the Unity iOS module, Xcode, supported CocoaPods resolution and the authorized signing team. [Android API support by AGP version](https://developer.android.com/build/releases/about-agp#api-level-support)
 
    ```sh
    UNITY='/Volumes/Data/Unity/Hub/Editor/2022.3.8f1/Unity.app/Contents/MacOS/Unity'
