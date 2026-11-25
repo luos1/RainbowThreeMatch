@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
-internal sealed class TabletView
+internal sealed partial class TabletView
 {
     static readonly Color TextColor = new Color32(234, 242, 255, 255);
     static readonly Color Accent = new Color32(115, 231, 222, 255);
@@ -23,9 +23,9 @@ internal sealed class TabletView
     const float BackgroundScroll = .14f;
 
     readonly Font font;
-    readonly RectTransform safeRoot, arena, result;
+    readonly RectTransform safeRoot, arena;
     readonly Image player, playerShield, hpFill, shieldFill;
-    readonly Text hpText, shieldText, waveText, shotsText, title, resultStats;
+    readonly Text hpText, shieldText, waveText, shotsText;
     readonly Image[] enemySprites = new Image[11], warnings = new Image[11], enemyBars = new Image[11];
     readonly Image[] enemyTrails = new Image[11];
     readonly Image[] backdropTiles = new Image[2];
@@ -37,9 +37,7 @@ internal sealed class TabletView
     Vector2 previousScreen;
     int backdropCycle = -1;
     (int hp, int shield, int wave, int fired, int waiting, int blocked) previousStatus = (-1, -1, -1, -1, -1, -1);
-    TabletResult lastResult = TabletResult.Playing;
-
-    internal TabletView(Canvas canvas, Font font, Action retry, Sprite[] abilities)
+    internal TabletView(Canvas canvas, Font font, Sprite[] abilities, Action attack, Action hull)
     {
         this.font = font;
         abilityArt = abilities;
@@ -93,20 +91,7 @@ internal sealed class TabletView
         var footer = Graphic(pane, "Combat status", .027f, 0, 1, .064f, Hull).rectTransform;
         shotsText = Label(footer, "Shot totals", .043f, .13f, .96f, .86f, 37, Secondary);
 
-        result = Graphic(arena, "Result overlay", 0, 0, 1, 1, new Color32(7, 16, 31, 220)).rectTransform;
-        var recap = Graphic(result, "Round result", .115f, .25f, .885f, .75f, Hull).rectTransform;
-        Graphic(recap, "Accent", .08f, .87f, .22f, .89f, Accent);
-        title = Label(recap, "Result title", .08f, .60f, .92f, .84f, 75, TextColor);
-        resultStats = Label(recap, "Result detail", .08f, .42f, .92f, .62f, 38, Secondary);
-        var buttonGraphic = Graphic(recap, "Tablet Retry", .08f, .14f, .53f, .37f, Accent);
-        buttonGraphic.raycastTarget = true;
-        var button = buttonGraphic.gameObject.AddComponent<Button>();
-        button.targetGraphic = buttonGraphic;
-        button.onClick.AddListener(() => retry());
-        var buttonText = Label(button.transform, "Retry label", 0, 0, 1, 1, 44, new Color32(12, 34, 49, 255));
-        buttonText.text = "다시 하기";
-        buttonText.alignment = TextAnchor.MiddleCenter;
-        result.gameObject.SetActive(false);
+        BuildSortieFlow(attack, hull);
         FitSafeArea();
     }
 
@@ -134,9 +119,9 @@ internal sealed class TabletView
         {
             previousStatus = status;
             waveText.text = $"웨이브  {state.Wave} / 3";
-            hpText.text = $"체력 {state.Hp}/{TabletCombat.MaxHp}";
+            hpText.text = $"체력 {state.Hp}/{state.Hull}";
             shieldText.text = $"쉴드 {shieldTenths / 10f:0.0}초";
-            Fill(hpFill, state.Hp / (float)TabletCombat.MaxHp);
+            Fill(hpFill, state.Hp / (float)state.Hull);
             Fill(shieldFill, state.Shield / TabletCombat.MaxShield);
             shotsText.text = $"발사 {state.FiredShots}발   ·   대기 {state.PendingShots}발   ·   방어 {state.BlockedDamage}";
         }
@@ -206,15 +191,7 @@ internal sealed class TabletView
             Place(burstSprites[i], fx.Position, unit * fx.Size * (.82f + progress * .38f));
         }
 
-        if (state.Result == lastResult)
-            return;
-        lastResult = state.Result;
-        result.gameObject.SetActive(lastResult != TabletResult.Playing);
-        if (lastResult == TabletResult.Playing)
-            return;
-        title.text = lastResult == TabletResult.Failed ? "기체 파괴" :
-            lastResult == TabletResult.Cleared ? "전 웨이브 격파" : "생존 성공";
-        resultStats.text = $"격파 {state.EnemiesDefeated}/11   ·   체력 {state.Hp}   ·   명중 {state.HitShots}/{state.FiredShots}";
+        RenderSortieEffects(state, unit);
     }
 
     void RenderFlow(float elapsed)

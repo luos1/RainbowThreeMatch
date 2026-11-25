@@ -161,6 +161,39 @@ public class TabletCombatTests
     }
 
     [Test]
+    public void FlightAwardRequiresEveryWingmateAndSurvivesAFailedRoundOnlyUntilReset()
+    {
+        var combat = new TabletCombat();
+        combat.ApplyMatch(1, 8);
+        for (int i = 0; i < 240 && combat.EnemiesDefeated < 1; i++) combat.Advance(1.0 / 60);
+        Assert.That(combat.EnemiesDefeated, Is.EqualTo(1));
+        Assert.That(combat.AwardedFlights, Is.Zero);
+        for (int i = 0; i < 240 && combat.EnemiesDefeated < 2; i++) combat.Advance(1.0 / 60);
+        Assert.That(combat.AwardedFlights, Is.EqualTo(1));
+        combat.Advance(60);
+        Assert.That(combat.Result, Is.EqualTo(TabletResult.Failed));
+        Assert.That(combat.AwardedFlights & TabletProgress.BossBit, Is.Zero);
+        Assert.That(combat.AwardedFlights & 1, Is.EqualTo(1));
+        combat.Reset();
+        Assert.That(combat.AwardedFlights, Is.Zero);
+    }
+
+    [Test]
+    public void HullUpgradeRaisesTheHealingCeilingButDoesNotChangeHealingOrShieldPerTile()
+    {
+        var combat = new TabletCombat();
+        combat.Reset(13, 1.3f);
+        combat.Advance(17.1);
+        Assert.That(combat.Hp, Is.EqualTo(10));
+        combat.ApplyMatch(4, 3);
+        Assert.That(combat.Hp, Is.EqualTo(13));
+        KeepAlive(combat, 30);
+        combat.ApplyMatch(6, 3);
+        Assert.That(combat.Shield, Is.EqualTo(2.25).Within(.001));
+        Assert.That(combat.OfferedShots, Is.Zero);
+    }
+
+    [Test]
     public void NonlethalContactShowsAVisibleImpactOnTheDamageTick()
     {
         var combat = new TabletCombat();
@@ -211,6 +244,8 @@ public class TabletCombatTests
         Assert.That(combat.Result, Is.EqualTo(TabletResult.Cleared));
         Assert.That(combat.EnemiesDefeated, Is.EqualTo(11));
         Assert.That(combat.TotalDamage, Is.EqualTo(32).Within(.001));
+        Assert.That(combat.AwardedFlights, Is.EqualTo(31));
+        Assert.That(TabletProgress.RewardTotal(combat.AwardedFlights), Is.EqualTo(180));
         Assert.That(combat.ActiveShots + combat.PendingShots, Is.Zero);
         combat.Reset();
         Assert.That(combat.Elapsed, Is.Zero);
