@@ -73,3 +73,27 @@ crashlytics-build.properties
 **/[Aa]ssets/[Ss]treamingAssets/aa.meta
 **/[Aa]ssets/[Ss]treamingAssets/aa/*
 .DS_Store
+
+# Ruflo local secrets and runtime data
+.env
+.env.local
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+
+# Firebase config and signing material stay local
+google-services.json
+GoogleService-Info.plist
+google-services-desktop.json
+google-services.json.meta
+GoogleService-Info.plist.meta
+google-services-desktop.json.meta
+*.keystore
+*.jks
+.env*
+*.env
+*.env.*
+.claude-flow/
+Rainbow/FirebasePackages/
+Rainbow/Assets/GeneratedLocalRepo/

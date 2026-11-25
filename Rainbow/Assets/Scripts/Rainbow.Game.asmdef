@@ -4,5 +4,12 @@
         "UnityEngine.UI",
         "Unity.TextMeshPro",
         "Rainbow.UniversalSDK"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.google.firebase.firestore",
+            "expression": "14.2.0",
+            "define": "RAINBOW_FIREBASE"
+        }
     ]
 }
