@@ -1,7 +1,9 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
@@ -53,7 +55,7 @@ public class GameSceneTests
             int[,] board = ReadBoard(game);
             var match = FindMatch(board);
             var button = game.blocks[match.x].blocks[match.y].GetComponent<Button>();
-            button.onClick.Invoke();
+            ClickVisibleButton(button);
             Assert.That(game.CanPlay, Is.False);
             Assert.That(button.GetComponent<Block>().colorIndex, Is.Zero);
 
@@ -76,7 +78,8 @@ public class GameSceneTests
             Assert.That(retry.gameObject.activeInHierarchy, Is.True);
 
             Time.timeScale = 1f;
-            retry.onClick.Invoke();
+            yield return null;
+            ClickVisibleButton(retry);
             yield return WaitFor(() => game.CanPlay, "retry drop");
             Assert.That(retry.gameObject.activeInHierarchy, Is.False);
             Assert.That(game.Score, Is.Zero);
@@ -111,6 +114,27 @@ public class GameSceneTests
             Assert.That(point.x, Is.InRange(bounds.xMin - 1f, bounds.xMax + 1f), rect.name + " horizontal visibility");
             Assert.That(point.y, Is.InRange(bounds.yMin - 1f, bounds.yMax + 1f), rect.name + " vertical visibility");
         }
+    }
+
+    static void ClickVisibleButton(Button button)
+    {
+        Canvas.ForceUpdateCanvases();
+        var canvas = button.GetComponentInParent<Canvas>();
+        var rect = (RectTransform)button.transform;
+        var events = EventSystem.current;
+        Assert.That(events, Is.Not.Null);
+        var pointer = new PointerEventData(events)
+        {
+            position = RectTransformUtility.WorldToScreenPoint(canvas.worldCamera, rect.TransformPoint(rect.rect.center)),
+            button = PointerEventData.InputButton.Left
+        };
+        var hits = new List<RaycastResult>();
+        events.RaycastAll(pointer, hits);
+        Assert.That(hits, Is.Not.Empty, button.name + " raycast");
+        var target = ExecuteEvents.GetEventHandler<IPointerClickHandler>(hits[0].gameObject);
+        Assert.That(target, Is.EqualTo(button.gameObject), "Raycast hits: " +
+            string.Join(", ", hits.ConvertAll(hit => $"{hit.gameObject.name} (depth {hit.depth})")));
+        Assert.That(ExecuteEvents.Execute(target, pointer, ExecuteEvents.pointerClickHandler), Is.True);
     }
 
     static int[,] ReadBoard(Game game)
