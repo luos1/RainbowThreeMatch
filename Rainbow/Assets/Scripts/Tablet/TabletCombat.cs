@@ -11,25 +11,29 @@ internal sealed class TabletCombat
     internal const int ShotCapacity = 48;
     internal const int EffectCapacity = 10;
     internal const float MaxShield = 6;
-    internal const float ImpactTime = .12f;
-    const float EntryTime = .56f;
-    const float EntryOverhang = .21f;
-    const float AimLead = .65f;
-    const float BurstTime = .32f;
-    const float ShotSpeed = 1.85f;
+    internal const float ImpactTime = .09f;
+    const float EntryTime = .66f;
+    const float DiveTime = .92f;
+    const float DivePeriod = 5.35f;
+    const float AimLead = .50f;
+    const float AimRefresh = .14f;
+    const float PlayerSteerSpeed = .88f;
+    const float BurstTime = .22f;
+    const float ShotSpeed = 3.65f;
+    const float HomingTurnRate = 240f;
     const float HitRadius = .065f;
     const double Frame = 1.0 / 60;
     const double ShotInterval = 1.0 / 12;
 
-    // Starts, strike times and lanes are shared by the simulation and its telegraphs.
+    // Flight identifiers also select alternating entry sides. Strike times stay independent of motion.
     static readonly EnemyPlan[] Plans =
     {
-        new EnemyPlan(0, 9, .46f, 2, 1, 0), new EnemyPlan(4, 13, .46f, 2, 1, 0),
-        new EnemyPlan(8, 17, .33f, 2, 1, 0), new EnemyPlan(12, 21, .68f, 2, 1, 0),
-        new EnemyPlan(18, 23, .31f, 3, 1, 1), new EnemyPlan(22, 28, .66f, 3, 1, 1),
-        new EnemyPlan(26, 33, .51f, 3, 2, 1),
-        new EnemyPlan(38, 43, .26f, 3, 2, 0), new EnemyPlan(40, 47, .74f, 3, 2, 0),
-        new EnemyPlan(43, 51, .56f, 3, 2, 0), new EnemyPlan(47, 57, .49f, 6, 2, 2)
+        new EnemyPlan(0, 9, .41f, 2, 1, 0, 0, true), new EnemyPlan(.24f, 13, .58f, 2, 1, 0, 0),
+        new EnemyPlan(6.1f, 17, .27f, 2, 1, 0, 1, true), new EnemyPlan(6.34f, 21, .74f, 2, 1, 0, 1),
+        new EnemyPlan(18, 23, .31f, 3, 1, 1, 2, true), new EnemyPlan(18.24f, 28, .66f, 3, 1, 1, 2),
+        new EnemyPlan(18.48f, 33, .51f, 3, 2, 1, 2, true),
+        new EnemyPlan(38, 43, .26f, 3, 2, 0, 3, true), new EnemyPlan(38.24f, 47, .74f, 3, 2, 0, 3),
+        new EnemyPlan(38.48f, 51, .56f, 3, 2, 0, 3, true), new EnemyPlan(46.25f, 57, .49f, 6, 2, 2, 4, true)
     };
 
     readonly Queue<Volley> queue = new Queue<Volley>();
@@ -172,16 +176,16 @@ internal sealed class TabletCombat
             enemy.Warning = !enemy.Attacked && elapsed >= plan.Attack - 1;
         }
 
-        if (!IsAlive(target) || elapsed >= aimUntil)
+        if (!IsTargetable(target) || elapsed >= aimUntil)
         {
             target = SelectTarget();
-            aimUntil = elapsed + .24;
+            aimUntil = elapsed + AimRefresh;
         }
-        float destination = IsAlive(target) ? enemies[target].Position.x : .5f;
-        Player = new Vector2(Mathf.MoveTowards(Player.x, Mathf.Clamp(destination, .14f, .86f), .65f * delta), Player.y);
+        float destination = IsTargetable(target) ? enemies[target].Position.x : .5f;
+        Player = new Vector2(Mathf.MoveTowards(Player.x, Mathf.Clamp(destination, .14f, .86f), PlayerSteerSpeed * delta), Player.y);
 
         UpdateShots(delta);
-        if (PendingShots > 0 && IsAlive(target) && elapsed + 1e-7 >= nextShot && ActiveShots < ShotCapacity)
+        if (PendingShots > 0 && IsTargetable(target) && elapsed + 1e-7 >= nextShot && ActiveShots < ShotCapacity)
             Fire();
 
         for (int i = 0; i < Plans.Length; i++)
@@ -228,7 +232,7 @@ internal sealed class TabletCombat
         float distance = float.MaxValue;
         for (int i = 0; i < enemies.Length; i++)
         {
-            if (!IsAlive(i)) continue;
+            if (!IsTargetable(i)) continue;
             var offset = enemies[i].Position - Player;
             float score = offset.sqrMagnitude + (enemies[i].Attacked ? .18f : 0);
             if (score >= distance) continue;
@@ -240,15 +244,40 @@ internal sealed class TabletCombat
 
     bool IsAlive(int index) => index >= 0 && enemies[index].Spawned && enemies[index].Hp > 0;
 
+    bool IsTargetable(int index)
+    {
+        if (!IsAlive(index)) return false;
+        var position = enemies[index].Position;
+        return position.x >= 0 && position.x <= 1 && position.y >= 0 && position.y <= 1;
+    }
+
     static Vector2 PositionAt(EnemyPlan plan, int index, float age)
     {
-        float entry = 1f - Mathf.Clamp01(age / EntryTime);
-        float amplitude = plan.Style == 1 ? .12f : plan.Style == 2 ? .058f : .033f;
-        float rhythm = plan.Style == 1 ? 2.7f : plan.Style == 2 ? 1.6f : 2.1f;
-        float swing = Mathf.Sin(age * rhythm + index);
-        float weave = amplitude * swing * (.7f + .3f * swing * swing);
-        float approach = .88f - Mathf.Min(.43f, age * .028f);
-        return new Vector2(plan.Lane + weave, approach + EntryOverhang * entry * entry * entry);
+        bool left = plan.Flight % 2 == 0;
+        Vector2 rally = new Vector2(plan.Lane + .022f * Mathf.Sin(age * 2.5f + index * .35f),
+            .82f - .065f * (index % 2) + .016f * Mathf.Sin(age * 1.8f));
+        if (age < EntryTime)
+        {
+            float phase = Mathf.Clamp01(age / EntryTime);
+            // An eased cubic lets each flight cross the arena and brake into its slot.
+            float t = 1 - Mathf.Pow(1 - phase, 1.65f);
+            Vector2 start = left ? new Vector2(-.19f, 1.10f) : new Vector2(1.19f, 1.04f);
+            Vector2 arch = left ? new Vector2(.02f, 1.21f) : new Vector2(.97f, 1.16f);
+            Vector2 cross = left ? new Vector2(.91f, .50f) : new Vector2(.06f, .62f);
+            float remaining = 1 - t;
+            return remaining * remaining * (remaining * start + 3 * t * arch)
+                + t * t * (3 * remaining * cross + t * rally);
+        }
+
+        float sinceDive = age - (EntryTime + .46f + index % 3 * .14f);
+        if (!plan.Dives || sinceDive < 0) return rally;
+        float dive = Mathf.Repeat(sinceDive, DivePeriod) / DiveTime;
+        if (dive >= 1) return rally;
+
+        float arc = Mathf.Sin(dive * Mathf.PI);
+        float depth = plan.Style == 1 ? .29f : .255f;
+        float turn = (left ? .19f : -.19f) * Mathf.Sin(dive * Mathf.PI * 2) * arc;
+        return rally + new Vector2(turn, -depth * arc * arc);
     }
 
     void Fire()
@@ -288,12 +317,12 @@ internal sealed class TabletCombat
             if (!shot.Active) continue;
             if (shot.Color == 5)
             {
-                if (!IsAlive(shot.Target)) shot.Target = SelectTarget();
-                if (IsAlive(shot.Target))
+                if (!IsTargetable(shot.Target)) shot.Target = SelectTarget();
+                if (IsTargetable(shot.Target))
                 {
                     Vector2 desired = enemies[shot.Target].Position - shot.Position;
                     float angle = Vector2.SignedAngle(shot.Direction, desired);
-                    shot.Direction = Rotate(shot.Direction, Mathf.Clamp(angle, -135 * delta, 135 * delta));
+                    shot.Direction = Rotate(shot.Direction, Mathf.Clamp(angle, -HomingTurnRate * delta, HomingTurnRate * delta));
                 }
             }
             Vector2 step = shot.Direction * (ShotSpeed * delta);
@@ -328,7 +357,7 @@ internal sealed class TabletCombat
         float nearest = float.MaxValue;
         for (int i = 0; i < enemies.Length; i++)
         {
-            if (!IsAlive(i) || (shot.HitMask & (1 << i)) != 0) continue;
+            if (!IsTargetable(i) || (shot.HitMask & (1 << i)) != 0) continue;
             Vector2 relative = enemies[i].Position - shot.Position;
             float amount = Mathf.Clamp01(Vector2.Dot(relative, step) / squaredLength);
             float distance = (relative - amount * step).sqrMagnitude;
@@ -350,7 +379,7 @@ internal sealed class TabletCombat
             int next = -1;
             for (int i = 0; i < enemies.Length; i++)
             {
-                if (i == impact || i == previous || !IsAlive(i)) continue;
+                if (i == impact || i == previous || !IsTargetable(i)) continue;
                 float distance = (enemies[i].Position - position).sqrMagnitude;
                 if (distance >= closest) continue;
                 closest = distance;
@@ -434,8 +463,9 @@ internal sealed class TabletCombat
     readonly struct EnemyPlan
     {
         internal readonly float Spawn, Attack, Lane, Hp;
-        internal readonly int Damage, Style;
-        internal EnemyPlan(float spawn, float attack, float lane, float hp, int damage, int style)
+        internal readonly int Damage, Style, Flight;
+        internal readonly bool Dives;
+        internal EnemyPlan(float spawn, float attack, float lane, float hp, int damage, int style, int flight, bool dives = false)
         {
             Spawn = spawn;
             Attack = attack;
@@ -443,6 +473,8 @@ internal sealed class TabletCombat
             Hp = hp;
             Damage = damage;
             Style = style;
+            Flight = flight;
+            Dives = dives;
         }
     }
 }

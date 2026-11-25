@@ -62,6 +62,7 @@ public class TabletCombatTests
     public void CadencePreservesFifoHandoffAndPoolCapacity()
     {
         var combat = new TabletCombat();
+        combat.Advance(1);
         combat.ApplyMatch(1, 3);
         combat.ApplyMatch(2, 12);
         combat.Advance(.19);
@@ -114,16 +115,49 @@ public class TabletCombatTests
     {
         var combat = new TabletCombat();
         combat.Advance(1.0 / 60);
-        float entry = combat.Enemies[0].Position.y;
-        combat.Advance(.18);
-        float moving = combat.Enemies[0].Position.y;
-        combat.Advance(.44);
-        float settled = combat.Enemies[0].Position.y;
-        combat.Advance(.18);
+        Vector2 entry = combat.Enemies[0].Position;
+        combat.Advance(.35);
+        Vector2 moving = combat.Enemies[0].Position;
+        combat.Advance(.48);
+        Vector2 settled = combat.Enemies[0].Position;
+        combat.Advance(.20);
 
-        Assert.That(entry, Is.GreaterThan(1.02f));
-        Assert.That(settled, Is.InRange(.83f, .9f));
-        Assert.That(entry - moving, Is.GreaterThan(5 * (settled - combat.Enemies[0].Position.y)));
+        Assert.That(entry.y, Is.GreaterThan(1.02f));
+        Assert.That(settled.y, Is.InRange(.81f, .85f));
+        Assert.That(Vector2.Distance(entry, moving), Is.GreaterThan(5 * Vector2.Distance(settled, combat.Enemies[0].Position)));
+    }
+
+    [Test]
+    public void WingmatesEnterInOrderAndTheLeadShipReturnsAfterDiving()
+    {
+        var combat = new TabletCombat();
+        combat.Advance(.05);
+        Assert.That(combat.Enemies[0].Position.x, Is.LessThan(0));
+        Assert.That(combat.Enemies[1].Spawned, Is.False);
+        combat.Advance(.32);
+        Assert.That(combat.Enemies[1].Spawned, Is.True);
+        Assert.That(combat.Enemies[0].Position.x, Is.InRange(0f, 1f));
+        combat.Advance(.63);
+        float formationY = combat.Enemies[0].Position.y;
+        combat.Advance(.60);
+        Assert.That(combat.Enemies[0].Position.y, Is.LessThan(formationY - .12f));
+        combat.Advance(.80);
+        Assert.That(combat.Enemies[0].Position.y, Is.EqualTo(formationY).Within(.08f));
+        Assert.That(combat.Hp, Is.EqualTo(TabletCombat.MaxHp));
+    }
+
+    [Test]
+    public void EveryFlightRemainsTargetableAfterEntering()
+    {
+        var combat = new TabletCombat();
+        KeepAlive(combat, 50);
+        foreach (var enemy in combat.Enemies)
+        {
+            Assert.That(enemy.Spawned, Is.True);
+            Assert.That(enemy.Position.x, Is.InRange(.04f, .96f));
+            Assert.That(enemy.Position.y, Is.InRange(.20f, .96f));
+        }
+        Assert.That(combat.TotalStartingEnemyHp, Is.EqualTo(32));
     }
 
     [Test]
@@ -135,11 +169,22 @@ public class TabletCombatTests
             combat.Advance(1.0 / 60);
 
         Assert.That(combat.HitShots, Is.EqualTo(1));
-        Assert.That(combat.Enemies[0].Hp, Is.EqualTo(1));
+        Assert.That(combat.TotalDamage, Is.EqualTo(1));
         Assert.That(combat.EnemiesDefeated, Is.Zero);
         Assert.That(combat.ActiveEffects, Is.EqualTo(1));
         combat.Reset();
         Assert.That(combat.ActiveEffects, Is.Zero);
+    }
+
+    [Test]
+    public void OpeningShotReachesTheScoutWithinAQuarterOfASecond()
+    {
+        var combat = new TabletCombat();
+        combat.Advance(.9);
+        combat.ApplyMatch(1, 3);
+        combat.Advance(.25);
+        Assert.That(combat.FiredShots, Is.EqualTo(3));
+        Assert.That(combat.HitShots, Is.GreaterThan(0));
     }
 
     [Test]

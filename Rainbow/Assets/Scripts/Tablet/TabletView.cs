@@ -20,6 +20,7 @@ internal sealed class TabletView
     };
     const float RecoilDistance = .042f;
     const float TrailThreshold = .12f;
+    const float BackgroundScroll = .14f;
 
     readonly Font font;
     readonly RectTransform safeRoot, arena, result;
@@ -27,11 +28,14 @@ internal sealed class TabletView
     readonly Text hpText, shieldText, waveText, shotsText, title, resultStats;
     readonly Image[] enemySprites = new Image[11], warnings = new Image[11], enemyBars = new Image[11];
     readonly Image[] enemyTrails = new Image[11];
+    readonly Image[] backdropTiles = new Image[2];
+    readonly TabletStarFlow starFlow;
     readonly Image[] shotSprites = new Image[TabletCombat.ShotCapacity], burstSprites = new Image[TabletCombat.EffectCapacity];
     readonly Sprite[] enemyArt = new Sprite[3], explosions = new Sprite[4], abilityArt;
     readonly Sprite ring;
     Rect previousSafe;
     Vector2 previousScreen;
+    int backdropCycle = -1;
     (int hp, int shield, int wave, int fired, int waiting, int blocked) previousStatus = (-1, -1, -1, -1, -1, -1);
     TabletResult lastResult = TabletResult.Playing;
 
@@ -61,8 +65,14 @@ internal sealed class TabletView
         var field = Graphic(pane, "Arena frame", .027f, .081f, 1, .855f, Border).rectTransform;
         arena = Graphic(field, "Arena", .003f, .003f, .997f, .997f, new Color32(5, 10, 25, 255)).rectTransform;
         arena.gameObject.AddComponent<RectMask2D>();
-        var background = Graphic(arena, "Generated arena", 0, 0, 1, 1, Color.white);
-        background.sprite = Art("arena");
+        var backdrop = Art("arena");
+        for (int i = 0; i < backdropTiles.Length; i++)
+        {
+            backdropTiles[i] = Graphic(arena, "Scrolling space " + (i + 1), 0, 0, 1, 1, Color.white);
+            backdropTiles[i].sprite = backdrop;
+        }
+        starFlow = Rect(arena, "Star flow", 0, 0, 1, 1).gameObject.AddComponent<TabletStarFlow>();
+        starFlow.raycastTarget = false;
 
         playerShield = Entity("Player shield", ring);
         playerShield.color = new Color(.6f, .86f, 1f, .78f);
@@ -132,6 +142,7 @@ internal sealed class TabletView
         }
 
         float unit = Mathf.Min(arena.rect.width, arena.rect.height);
+        RenderFlow(state.Elapsed);
         Place(player, state.Player, unit * .138f);
         Direction(player, Vector2.up);
         SetActive(playerShield, state.Shield > 0);
@@ -151,7 +162,7 @@ internal sealed class TabletView
             float shipSize = unit * (enemy.Style == 2 ? .171f : enemy.Style == 1 ? .133f : .107f);
             float hit = enemy.HitTime / TabletCombat.ImpactTime;
             Vector2 position = enemy.Position + enemy.HitDirection * (RecoilDistance * hit * hit);
-            float bank = Mathf.Clamp(-enemy.Velocity.x * 58f, -18f, 18f);
+            float bank = Mathf.Clamp(-enemy.Velocity.x * 58f, -24f, 24f);
             Place(warnings[i], position, shipSize * 1.4f);
             if (speed > TrailThreshold)
             {
@@ -204,6 +215,23 @@ internal sealed class TabletView
         title.text = lastResult == TabletResult.Failed ? "기체 파괴" :
             lastResult == TabletResult.Cleared ? "전 웨이브 격파" : "생존 성공";
         resultStats.text = $"격파 {state.EnemiesDefeated}/11   ·   체력 {state.Hp}   ·   명중 {state.HitShots}/{state.FiredShots}";
+    }
+
+    void RenderFlow(float elapsed)
+    {
+        float scroll = elapsed * BackgroundScroll;
+        int tile = Mathf.FloorToInt(scroll);
+        float bottom = tile - scroll;
+        for (int i = 0; i < backdropTiles.Length; i++)
+        {
+            var rect = backdropTiles[i].rectTransform;
+            rect.anchoredPosition = new Vector2(0, (bottom + i) * arena.rect.height);
+            // Mirror each neighboring tile so the adjoining edges match.
+            if (tile != backdropCycle)
+                rect.localScale = new Vector3(1, (tile + i) % 2 == 0 ? 1 : -1, 1);
+        }
+        backdropCycle = tile;
+        starFlow.SetTime(elapsed);
     }
 
     internal void Dispose()
@@ -273,5 +301,49 @@ internal sealed class TabletView
         rect.anchorMax = new Vector2(right, top);
         rect.offsetMin = rect.offsetMax = Vector2.zero;
         return rect;
+    }
+}
+
+[RequireComponent(typeof(CanvasRenderer))]
+internal sealed class TabletStarFlow : MaskableGraphic
+{
+    const float DistantScroll = .32f;
+    const float NearScroll = .86f;
+    const int DistantStreakCount = 22;
+    const int NearStreakCount = 14;
+    static readonly Color DistantStar = new Color(.66f, .78f, .95f, .38f);
+    static readonly Color NearStar = new Color(.55f, .83f, 1f, .61f);
+    float elapsed;
+
+    internal void SetTime(float seconds)
+    {
+        if (seconds == elapsed) return;
+        elapsed = seconds;
+        SetVerticesDirty();
+    }
+
+    protected override void OnPopulateMesh(VertexHelper mesh)
+    {
+        mesh.Clear();
+        var bounds = rectTransform.rect;
+        float unit = Mathf.Min(bounds.width, bounds.height);
+        for (int i = 0; i < DistantStreakCount + NearStreakCount; i++)
+        {
+            bool near = i >= DistantStreakCount;
+            float speed = (near ? NearScroll : DistantScroll) * (1 + i % 4 * .09f);
+            float y = bounds.yMin + bounds.height * Mathf.Repeat(i * .4142f + .25f - elapsed * speed, 1);
+            float x = bounds.xMin + bounds.width * (.015f + .97f * Mathf.Repeat(i * .6180f + .24f, 1));
+            float halfWidth = unit * (near ? .00165f : .0011f);
+            float length = unit * ((near ? .036f : .014f) + i % 4 * .0025f);
+            Color head = near ? NearStar : DistantStar;
+            Color tail = new Color(head.r, head.g, head.b, .03f);
+            int first = mesh.currentVertCount;
+            mesh.AddVert(new Vector3(x - halfWidth, y), head, Vector2.zero);
+            mesh.AddVert(new Vector3(x - halfWidth, y + length), tail, Vector2.zero);
+            mesh.AddVert(new Vector3(x + halfWidth, y + length), tail, Vector2.zero);
+            mesh.AddVert(new Vector3(x + halfWidth, y), head, Vector2.zero);
+            mesh.AddTriangle(first, first + 1, first + 2);
+            mesh.AddTriangle(first + 2, first + 3, first);
+        }
     }
 }
