@@ -72,7 +72,11 @@ public class Game : MonoBehaviour
         {
             var block = blocks[x].blocks[y];
             block.SetPosition(x, y);
-            if (tablet != null) block.UseTabletDropTiming();
+            if (tablet != null)
+            {
+                block.UseTabletDropTiming();
+                block.UseTabletGlyphs(tablet.TileGlyphs);
+            }
         }
 
         if (tablet == null)
@@ -211,7 +215,7 @@ public class Game : MonoBehaviour
         Score += MatchRules.GetScore(group.Count);
         ShowScore?.Invoke(Score);
         if (tablet != null)
-            matchFeedback.ShowTabletResult(tablet.Match(color, group.Count));
+            matchFeedback.ShowTabletResult(tablet.Match(color, group.Count), color);
         soundEffects?.PlayMatch(group.Count, chained);
         matchBurst?.Play(blocks, group, position, chained);
         foreach (var cell in group)
@@ -358,7 +362,7 @@ public class Game : MonoBehaviour
             boardData[x, row] = color;
             blocks[x].blocks[row].ChangeSprite(color);
         }
-        matchFeedback.ShowTabletResult(guidance);
+        matchFeedback.ShowTabletResult(guidance, color);
     }
 
     IEnumerator WaitForDrop()

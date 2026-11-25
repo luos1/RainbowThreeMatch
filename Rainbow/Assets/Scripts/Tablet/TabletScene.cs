@@ -12,8 +12,10 @@ public sealed class TabletScene : MonoBehaviour
     static readonly string[] ColorNames = { "", "빨강", "주황", "노랑", "초록", "하늘", "파랑", "보라" };
     static readonly string[] AbilityNames = { "", "직선탄", "관통탄", "확산탄", "", "유도탄", "", "폭발탄" };
     static readonly string[] AbilityAssets = { "", "straight", "piercing", "spread", "heal", "homing", "shield", "blast" };
+    static readonly string[] GlyphAssets = { "", "straight", "piercing", "spread", "repair", "homing", "shield", "blast" };
 
     readonly Sprite[] icons = new Sprite[8];
+    readonly Sprite[] glyphs = new Sprite[8];
     TabletView view;
     TabletProgress progress;
     Game puzzle;
@@ -35,7 +37,10 @@ public sealed class TabletScene : MonoBehaviour
         Screen.orientation = ScreenOrientation.LandscapeLeft;
 #endif
         for (int i = 1; i < icons.Length; i++)
+        {
             icons[i] = LoadSprite(AbilityAssets[i]);
+            glyphs[i] = LoadSprite("effect-" + GlyphAssets[i]);
+        }
         feedback.UseTablet(this);
         var background = GetComponent<Image>();
         background.color = new Color32(18, 29, 48, 255);
@@ -47,14 +52,15 @@ public sealed class TabletScene : MonoBehaviour
         back.color = background.color;
         back.raycastTarget = false;
         var canvas = GetComponentInParent<Canvas>();
-        view = new TabletView(canvas, feedback.DisplayFont, icons,
+        view = new TabletView(canvas, feedback.DisplayFont, icons, glyphs,
             () => Buy(TabletUpgrade.Attack), () => Buy(TabletUpgrade.Hull));
         Combat.Reset(progress.MaxHp, progress.Power);
         view.Render(Combat);
         RenderPhase();
     }
 
-    internal Sprite GetAbilityIcon(int color) => icons[color];
+    internal Sprite[] TileGlyphs => glyphs;
+    internal Sprite GetTileGlyph(int color) => glyphs[color];
 
     internal void ResetRound()
     {

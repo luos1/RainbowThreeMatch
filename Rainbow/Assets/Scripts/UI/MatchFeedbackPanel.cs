@@ -20,10 +20,24 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
 
     readonly Swatch[] swatches = new Swatch[7];
     readonly Image[] abilityIcons = new Image[7];
+    Image statusGlyph;
     TabletScene tablet;
     internal Font DisplayFont => koreanFont;
     internal void UseTablet(TabletScene mode) => tablet = mode;
-    internal void ShowTabletResult(string message) => status.text = message;
+    internal void ShowTabletResult(string message, int color)
+    {
+        status.text = message;
+        SetStatusGlyph(color);
+    }
+
+    void SetStatusGlyph(int color)
+    {
+        if (statusGlyph == null) return;
+        statusGlyph.enabled = color > 0;
+        if (color > 0) statusGlyph.sprite = tablet.GetTileGlyph(color);
+        RectTransform rect = status.rectTransform;
+        rect.anchorMin = new Vector2(color > 0 ? .12f : .05f, rect.anchorMin.y);
+    }
 
     internal void SetPalette(int count)
     {
@@ -54,6 +68,7 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         ClearTransitions();
         status.color = Color.white;
         status.text = "같은 색 3개부터 터져요";
+        SetStatusGlyph(0);
         detail.text = "맞닿은 칸은 다음 색으로 바뀌어요";
         RefreshPalette();
         RefreshMarks(false);
@@ -65,6 +80,7 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         ClearTransitions();
         status.color = HitColor;
         status.text = $"{ColorNames[color]} {connected}개만 연결됐어요";
+        SetStatusGlyph(0);
         detail.text = "같은 색이 3개 이상 이어진 곳을 눌러요";
         RefreshMarks(true);
     }
@@ -127,7 +143,9 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         for (int i = 0; i < swatches.Length; i++)
         {
             bool available = i < activeColors;
-            swatches[i].Icon.color = new Color(1f, 1f, 1f, available ? 1f : .38f);
+            swatches[i].Icon.color = tablet == null
+                ? new Color(1f, 1f, 1f, available ? 1f : .38f)
+                : TabletTileArt.Background(i + 1, available);
             swatches[i].Name.color = available ? Color.white : SecondaryText;
             if (abilityIcons[i] != null)
                 abilityIcons[i].color = new Color(1, 1, 1, available ? 1f : .3f);
@@ -175,8 +193,13 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         canvas = GetComponentInParent<Canvas>();
         matchBurst = GetComponent<MatchBurst>();
         FitBoardTouchTargets();
-        if (tablet != null && hud.TryGetComponent<Image>(out var hudImage))
-            hudImage.color = PanelColor;
+        if (tablet != null)
+        {
+            if (hud.TryGetComponent<Image>(out var hudImage))
+                hudImage.color = PanelColor;
+            if (board.TryGetComponent<Image>(out var tabletBoard))
+                tabletBoard.color = TabletTileArt.Empty;
+        }
         oldPalette.SetActive(false);
         panel = RectFor(transform, "Match Feedback", new Vector2(0f, 0f), Vector2.one);
         panel.SetSiblingIndex(board.GetSiblingIndex() + 1);
@@ -187,6 +210,11 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         MakeText(panel, "Palette title", "색이 바뀌는 순서", .05f, .81f, .54f, .98f, 43, Color.white, TextAnchor.MiddleLeft);
         palette = MakeText(panel, "Palette wrap", "", .53f, .81f, .95f, .98f, 36, SecondaryText, TextAnchor.MiddleRight);
         status = MakeText(panel, "Match status", "", .05f, .335f, .95f, .485f, 44, Color.white, TextAnchor.MiddleLeft);
+        if (tablet != null)
+        {
+            statusGlyph = MakeImage(panel, "Matched effect", .05f, .335f, .102f, .485f, Color.white);
+            statusGlyph.preserveAspect = true;
+        }
         detail = MakeText(panel, "Match detail", "", .05f, .19f, .95f, .34f, 36, SecondaryText, TextAnchor.MiddleLeft);
         MakeText(panel, "Match rule", "상하좌우로 이어진 같은 색을 눌러요", .05f, .035f, .95f, .17f, 34, SecondaryText, TextAnchor.MiddleLeft);
 
@@ -198,13 +226,13 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
             var slot = RectFor(panel, $"Color {i + 1}", new Vector2(x + .01f, .49f), new Vector2(x + slotWidth - .01f, .81f));
             var frame = MakeImage(slot, "Matched color", .09f, .32f, .91f, .945f, HitColor);
             var icon = MakeImage(slot, "Color icon", .15f, .36f, .85f, .9f, Color.white);
-            icon.sprite = ColorHelper.Instance.GetPaletteSprite(i);
             icon.preserveAspect = true;
-            if (tablet != null)
+            if (tablet == null)
+                icon.sprite = ColorHelper.Instance.GetPaletteSprite(i);
+            else
             {
-                var ability = MakeImage(slot, "Combat role", .52f, .35f, .99f, .68f, Color.white);
-                ability.sprite = tablet.GetAbilityIcon(i + 1);
-                ability.preserveAspect = true;
+                var ability = TabletTileArt.AddGlyph(icon.rectTransform);
+                ability.sprite = tablet.GetTileGlyph(i + 1);
                 abilityIcons[i] = ability;
             }
             var from = MakeImage(slot, "Previous color", .15f, .91f, .85f, .96f, SourceColor);

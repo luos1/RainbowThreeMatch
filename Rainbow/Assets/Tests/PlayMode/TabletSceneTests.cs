@@ -224,6 +224,31 @@ public class TabletSceneTests
         Assert.That(new TabletProgress(key).Balance, Is.EqualTo(105));
     }
 
+    [UnityTest]
+    public IEnumerator TabletTileAndPaletteShareAnEffectGlyphWhilePortraitKeepsTheFace()
+    {
+        yield return OpenTablet();
+        var tabletGame = Game.instance;
+        var first = tabletGame.blocks[0].blocks[0];
+        Assert.That(first.Sprite.name, Does.StartWith("effect-"));
+        Assert.That(first.GetComponent<Image>().color, Is.EqualTo(TabletTileArt.Empty));
+        var palette = GameObject.Find("Color " + first.colorIndex).transform.Find("Color icon/Effect glyph").GetComponent<Image>();
+        Assert.That(palette.sprite, Is.SameAs(first.Sprite));
+        foreach (string name in new[] { "straight", "piercing", "spread", "repair", "homing", "shield", "blast" })
+        {
+            var sprite = TabletScene.LoadSprite("effect-" + name);
+            Assert.That(sprite, Is.Not.Null, name);
+            Assert.That(sprite.pivot.x / sprite.rect.width, Is.EqualTo(.5).Within(.001), name);
+            Assert.That(sprite.pivot.y / sprite.rect.height, Is.EqualTo(.5).Within(.001), name);
+        }
+
+        yield return SceneManager.LoadSceneAsync("02.Game");
+        yield return WaitUntil(() => Game.instance != null && Game.instance.CanPlay);
+        var classic = Game.instance.blocks[0].blocks[0];
+        Assert.That(classic.Sprite, Is.SameAs(ColorHelper.Instance.GetSprite(classic.colorIndex - 1)));
+        Assert.That(classic.Sprite.name, Does.Not.StartWith("effect-"));
+    }
+
     [Test]
     public void GeneratedAssetsImportAsCenteredSprites()
     {

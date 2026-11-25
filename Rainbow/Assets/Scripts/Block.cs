@@ -7,12 +7,14 @@ public class Block : MonoBehaviour
     [SerializeField] Image icon;
     [SerializeField] AnimationBlock anim;
     public Color Color => color;
-    public Sprite Sprite => icon.sprite;
+    public Sprite Sprite => tabletGlyph == null ? icon.sprite : tabletGlyph.sprite;
     internal RectTransform VisualRect => icon.rectTransform;
     public int colorIndex { get; private set; }
 
     Color color = Color.white;
     Vector2Int position;
+    Image tabletGlyph;
+    Sprite[] tabletGlyphs;
 
 
     private void Awake()
@@ -42,6 +44,13 @@ public class Block : MonoBehaviour
     void SetColor(int index)
     {
         colorIndex = index;
+        if (tabletGlyph != null)
+        {
+            color = TabletTileArt.Background(index);
+            icon.color = color;
+            tabletGlyph.sprite = tabletGlyphs[index];
+            return;
+        }
         color = ColorHelper.Instance.GetColor(index - 1);
         icon.sprite = ColorHelper.Instance.GetSprite(index - 1);
     }
@@ -63,6 +72,14 @@ public class Block : MonoBehaviour
 
     internal void Settle() => anim.Settle();
     internal void UseTabletDropTiming() => anim.UseTabletDropTiming();
+
+    internal void UseTabletGlyphs(Sprite[] glyphs)
+    {
+        tabletGlyphs = glyphs;
+        tabletGlyph = TabletTileArt.AddGlyph(icon.rectTransform);
+        icon.sprite = null;
+        if (TryGetComponent<Image>(out var tileBacking)) tileBacking.color = TabletTileArt.Empty;
+    }
 
     public bool CheckDropEnd() => !anim.IsDropping;
 }
