@@ -66,7 +66,9 @@
 
 - (NSString *)wrapError:(NSError *)error
 {
-    NSDictionary *dic = @{@"code": @(error.code), @"message": error.localizedDescription};
+    // GoogleSignIn's native canceled error is -5. Match the SDK's Unity cancel code.
+    NSInteger code = ([error.domain isEqualToString:@"com.google.GIDSignIn"] && error.code == -5) ? 7001 : error.code;
+    NSDictionary *dic = @{@"code": @(code), @"message": error.localizedDescription};
     NSData *data = [NSJSONSerialization dataWithJSONObject:dic options:kNilOptions error:nil];
     if(!data) { return nil; }
     return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];

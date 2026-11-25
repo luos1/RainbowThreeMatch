@@ -6,14 +6,19 @@ namespace Universal.UniversalSDK
 {
     public class NativeInterface
     {
-#if UNITY_EDITOR
-        static AndroidJavaObject universalSdkWrapper = null;
-#else
-        static AndroidJavaObject universalSdkWrapper = new AndroidJavaObject("com.universal.sdk.unitywrapper.UniversalSdkWrapper");
-#endif
-        static NativeInterface()
+        private static AndroidJavaObject universalSdkWrapper;
+
+        public static bool HasGoogleConfiguration()
         {
-            var _ = UniversalSDK.Ins;
+            if (Application.platform != RuntimePlatform.Android)
+                return false;
+
+            using var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+            using var activity = player.GetStatic<AndroidJavaObject>("currentActivity");
+            using var resources = activity.Call<AndroidJavaObject>("getResources");
+            string packageName = activity.Call<string>("getPackageName");
+            int resourceId = resources.Call<int>("getIdentifier", "google_web_client_id", "string", packageName);
+            return resourceId != 0 && !string.IsNullOrWhiteSpace(resources.Call<string>("getString", resourceId));
         }
 
         public static void SetupSDK()
@@ -21,8 +26,8 @@ namespace Universal.UniversalSDK
             if (!Application.isPlaying) { return; }
             if (IsInvalidRuntime(null)) { return; }
 
-            if (universalSdkWrapper != null)
-                universalSdkWrapper.Call("setupSDK");
+            universalSdkWrapper ??= new AndroidJavaObject("com.universal.sdk.unitywrapper.UniversalSdkWrapper");
+            universalSdkWrapper.Call("setupSDK");
         }
 
         public static void Login(string identifier,

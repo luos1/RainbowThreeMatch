@@ -2,6 +2,7 @@
     "name": "Rainbow.Game",
     "references": [
         "UnityEngine.UI",
-        "Unity.TextMeshPro"
+        "Unity.TextMeshPro",
+        "Rainbow.UniversalSDK"
     ]
 }

@@ -1,5 +1,10 @@
 apply plugin: 'com.android.application'
 
+def rainbowGoogleWebClientId = System.getenv('RAINBOW_GOOGLE_WEB_CLIENT_ID')?.trim() ?: ''
+if (rainbowGoogleWebClientId && !(rainbowGoogleWebClientId ==~ /[A-Za-z0-9-]+\.apps\.googleusercontent\.com/)) {
+    throw new GradleException('RAINBOW_GOOGLE_WEB_CLIENT_ID must be a Google OAuth Web client ID.')
+}
+
 dependencies {
     implementation project(':unityLibrary')
     implementation 'androidx.multidex:multidex:2.0.1' //added
@@ -28,10 +33,9 @@ android {
 
 
         multiDexEnabled true //added
-​
         resValue("string", "facebook_app_id", "com.your.app.id.here")
         resValue("string", "facebook_client_token", "com.your.client.token.here")
-        resValue("string", "google_web_client_id", "com.your.client.id.here")
+        resValue("string", "google_web_client_id", rainbowGoogleWebClientId)
         resValue("string", "apple_client_id", "com.your.service.id.here")
         resValue("string", "redirect_url", "your.return.url.here")
     }

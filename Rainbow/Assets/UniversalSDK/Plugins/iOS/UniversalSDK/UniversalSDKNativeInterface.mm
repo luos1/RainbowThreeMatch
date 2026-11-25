@@ -10,6 +10,18 @@
 
 #define UNIVERSAL_SDK_EXTERNC extern "C"
 
+@protocol RainbowGoogleSignIn
++ (id<RainbowGoogleSignIn>)sharedInstance;
+- (BOOL)handleURL:(NSURL *)url;
+- (void)signOut;
+@end
+
+static id<RainbowGoogleSignIn> GoogleSignInInstance()
+{
+    Class googleSignIn = NSClassFromString(@"GIDSignIn");
+    return [(Class<RainbowGoogleSignIn>)googleSignIn sharedInstance];
+}
+
 // MARK: - Helpers
 NSString* UniversalSDKMakeNSString(const char* string)
 {
@@ -46,6 +58,23 @@ void universal_sdk_setup()
     [[UniversalSDKWrapper sharedInstance] setupSDK];
 }
 
+UNIVERSAL_SDK_EXTERNC int universal_sdk_has_google_configuration()
+{
+    NSString *clientId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"GIDClientID"];
+    return clientId.length > 0;
+}
+
+UNIVERSAL_SDK_EXTERNC void universal_sdk_handle_google_url(const char *url)
+{
+    NSURL *callback = [NSURL URLWithString:UniversalSDKMakeNSString(url)];
+    if (![callback.scheme hasPrefix:@"com.googleusercontent.apps."])
+        return;
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [GoogleSignInInstance() handleURL:callback];
+    });
+}
+
 UNIVERSAL_SDK_EXTERNC void universal_sdk_login(const char* identifier,
                                                int loginType);
 void universal_sdk_login(const char* identifier,
@@ -59,7 +88,9 @@ void universal_sdk_login(const char* identifier,
 UNIVERSAL_SDK_EXTERNC void universal_sdk_logout();
 void universal_sdk_logout()
 {
-    [[UniversalSDKWrapper sharedInstance] logout];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [GoogleSignInInstance() signOut];
+    });
 }
 
 UNIVERSAL_SDK_EXTERNC void universal_sdk_openSafariView(const char* url);

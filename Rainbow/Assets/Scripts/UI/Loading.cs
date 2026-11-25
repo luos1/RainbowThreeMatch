@@ -1,33 +1,26 @@
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class Loading : MonoBehaviour
 {
-    [SerializeField] GameObject LoadingGO;
-    [SerializeField] Login login;
+    [SerializeField] private GameObject loadingPanel;
+    [SerializeField] private Login login;
 
+    internal const string SceneName = "00.Loading";
 
-    private void Awake()
+    private void OnEnable() => login.SignedIn += OpenLobby;
+    private void OnDisable() => login.SignedIn -= OpenLobby;
+
+    private void Start()
     {
-        if (login.IsLoggedIn)
-        {
-            LoadingGO.SetActive(true);
-        }
-        else
-        {
-            login.SetActive(true);
-        }
+        if (UserData.Current != null)
+            OpenLobby();
     }
-    // bg켜저있도록 
-    //
-    // 로그인 전,
-    // 로그인 패널
-    //
-    // 로그인 되어 있음,
-    // 로비 씬 로딩
-    // 로딩 후 bg 패널 끔
-    // 
-    // 
-    // 실 로딩일 때
-    // 
+
+    private void OpenLobby()
+    {
+        login.gameObject.SetActive(false);
+        loadingPanel.SetActive(true);
+        SceneManager.LoadSceneAsync(Lobby.SceneName);
+    }
 }

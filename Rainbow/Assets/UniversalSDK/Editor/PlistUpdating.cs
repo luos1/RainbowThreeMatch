@@ -1,5 +1,7 @@
 ﻿#if UNITY_IOS
-using UnityEngine;
+using System;
+using System.Text.RegularExpressions;
+using UnityEditor.Build;
 using UnityEditor;
 using UnityEditor.Callbacks;
 using UnityEditor.iOS.Xcode;
@@ -26,7 +28,6 @@ namespace Universal.UniversalSDK.Editor
             SetupURLScheme(rootDict);
             SetupQueriesSchemes(rootDict);
             SetupFacebookSetting(rootDict);
-            SetupGoogleSetting(rootDict);
 
             File.WriteAllText(plistPath, plist.WriteToString());
                         
@@ -34,14 +35,30 @@ namespace Universal.UniversalSDK.Editor
 
         static void SetupURLScheme(PlistElementDict rootDict)
         {
+            string googleClientId = Environment.GetEnvironmentVariable("RAINBOW_GOOGLE_IOS_CLIENT_ID")?.Trim();
+            if (string.IsNullOrEmpty(googleClientId) && UniversalSDKSettings.UseGoogleLogin)
+                googleClientId = UniversalSDKSettings.GoogleClientID;
+
+            bool useGoogle = !string.IsNullOrEmpty(googleClientId);
+            if (!useGoogle && !UniversalSDKSettings.UseFacebookLogin)
+                return;
+
             PlistElementArray array = GetOrCreateArray(rootDict, "CFBundleURLTypes");
             var lineURLScheme = array.AddDict();
             lineURLScheme.SetString("CFBundleTypeRole", "Editor");
             lineURLScheme.SetString("CFBundleURLName", "Client");
             var schemes = lineURLScheme.CreateArray("CFBundleURLSchemes");
 
-            if (UniversalSDKSettings.UseGoogleLogin)
-                schemes.AddString(UniversalSDKSettings.ReversedClientID);
+            if (useGoogle)
+            {
+                const string suffix = ".apps.googleusercontent.com";
+                if (!Regex.IsMatch(googleClientId, @"\A[A-Za-z0-9-]+\.apps\.googleusercontent\.com\z"))
+                    throw new BuildFailedException("Configure a valid Google OAuth iOS client ID.");
+
+                schemes.AddString("com.googleusercontent.apps." + googleClientId.Substring(0, googleClientId.Length - suffix.Length));
+                rootDict.SetString("GoogleClientID", googleClientId);
+                rootDict.SetString("GIDClientID", googleClientId);
+            }
 
             if (UniversalSDKSettings.UseFacebookLogin)
                 schemes.AddString("fb"+ UniversalSDKSettings.FacebookAppID);
@@ -55,12 +72,6 @@ namespace Universal.UniversalSDK.Editor
                 array.AddString("fbapi");
                 array.AddString("fbauth2");
             }
-        }
-
-        static void SetupGoogleSetting(PlistElementDict rootDict)
-        {
-            if (UniversalSDKSettings.UseGoogleLogin)
-                rootDict.SetString("GoogleClientID", UniversalSDKSettings.GoogleClientID);            
         }
 
         static void SetupFacebookSetting(PlistElementDict rootDict)

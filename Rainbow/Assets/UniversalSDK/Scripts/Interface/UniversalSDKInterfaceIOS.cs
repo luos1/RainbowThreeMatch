@@ -2,19 +2,20 @@
 #if UNITY_IOS
 
 using UnityEngine;
-using System;
 using System.Runtime.InteropServices;
-using AOT;
-using System.Reflection;
 
 namespace Universal.UniversalSDK
 {
     public class NativeInterface
     {
-        static NativeInterface()
-        {
-            var _ = UniversalSDK.Ins;
-        }
+        [DllImport("__Internal")]
+        private static extern int universal_sdk_has_google_configuration();
+
+        public static bool HasGoogleConfiguration() => Application.platform == RuntimePlatform.IPhonePlayer
+            && universal_sdk_has_google_configuration() != 0;
+
+        [DllImport("__Internal")]
+        private static extern void universal_sdk_handle_google_url(string url);
 
         [DllImport("__Internal")]
         private static extern void universal_sdk_setup();
@@ -24,6 +25,8 @@ namespace Universal.UniversalSDK
             if (IsInvalidRuntime(null)) { return; }
             
             universal_sdk_setup();
+            Application.deepLinkActivated -= universal_sdk_handle_google_url;
+            Application.deepLinkActivated += universal_sdk_handle_google_url;
         }
 
         [DllImport("__Internal")]
