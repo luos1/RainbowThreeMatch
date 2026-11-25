@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
+using Rainbow.Services;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -12,10 +13,18 @@ using Object = UnityEngine.Object;
 
 public class GoogleSignInSceneTests
 {
+    [SetUp]
+    public void SetUp()
+    {
+        var auth = new FakeAuthService();
+        auth.RegisterGoogleCredential("test-token", "test-account");
+        AccountSession.SetServices(auth, new InMemoryCloudSaveService());
+    }
+
     [TearDown]
     public void ResetSession()
     {
-        UserData.ClearSession();
+        AccountSession.Reset();
         GoogleSignIn.Provider = new GoogleSignIn();
     }
 
@@ -28,9 +37,9 @@ public class GoogleSignInSceneTests
         var signIn = FindButton("Sign in with Google");
         Assert.That(signIn, Is.Not.Null, "The first build scene must present the Google sign-in action.");
         Click(signIn);
-        Assert.That(Status, Does.Contain("requires an Android or iOS device"));
+        Assert.That(Status, Does.Contain("Android 또는 iOS 기기"));
         Assert.That(signIn.interactable, Is.True);
-        Assert.That(UserData.Current, Is.Null);
+        Assert.That(AccountSession.Auth.CurrentUser, Is.Null);
         Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo("00.Loading"));
     }
 
@@ -48,13 +57,13 @@ public class GoogleSignInSceneTests
         Assert.That(provider.Attempts, Is.EqualTo(1));
         Assert.That(signIn.interactable, Is.False);
 
-        provider.Complete(SignInOutcome.Success, "test-account");
+        provider.Complete(SignInOutcome.Success, "test-token");
         yield return WaitForScene("01.Lobby");
-        Assert.That(UserData.Current?.ID, Is.EqualTo("test-account"));
-        Click(FindButton("Play"));
+        Assert.That(AccountSession.Auth.CurrentUser?.Uid, Is.EqualTo("test-account"));
+        Click(FindButton("플레이"));
         yield return WaitForScene("02.Game");
         Assert.That(Object.FindObjectOfType<Game>(), Is.Not.Null);
-        Assert.That(UserData.Current?.ID, Is.EqualTo("test-account"));
+        Assert.That(AccountSession.Auth.CurrentUser?.Uid, Is.EqualTo("test-account"));
     }
 
     [UnityTest]
@@ -68,19 +77,19 @@ public class GoogleSignInSceneTests
         var signIn = FindButton("Sign in with Google");
         Click(signIn);
         provider.Complete(SignInOutcome.Canceled);
-        Assert.That(Status, Does.Contain("canceled"));
+        Assert.That(Status, Does.Contain("취소"));
         Assert.That(signIn.interactable, Is.True);
 
         Click(signIn);
         provider.Complete(SignInOutcome.Failed);
-        Assert.That(Status, Does.Contain("try again"));
+        Assert.That(Status, Does.Contain("다시 시도"));
         Assert.That(signIn.interactable, Is.True);
 
         Click(signIn);
         provider.Complete(SignInOutcome.Success);
-        Assert.That(Status, Does.Contain("try again"));
+        Assert.That(Status, Does.Contain("다시 시도"));
         Assert.That(signIn.interactable, Is.True);
-        Assert.That(UserData.Current, Is.Null);
+        Assert.That(AccountSession.Auth.CurrentUser, Is.Null);
         Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo("00.Loading"));
     }
 
@@ -98,12 +107,12 @@ public class GoogleSignInSceneTests
         yield return null;
         yield return null;
 
-        Assert.That(Status, Does.Contain("timed out"));
+        Assert.That(Status, Does.Contain("시간이 초과"));
         Assert.That(provider.Cleanups, Is.EqualTo(1));
         Assert.That(signIn.interactable, Is.True);
         provider.Complete(SignInOutcome.Success, "late-test-account");
         yield return null;
-        Assert.That(UserData.Current, Is.Null);
+        Assert.That(AccountSession.Auth.CurrentUser, Is.Null);
         Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo("00.Loading"));
     }
 
@@ -116,12 +125,12 @@ public class GoogleSignInSceneTests
         yield return WaitForScene("00.Loading");
 
         Click(FindButton("Sign in with Google"));
-        provider.Complete(SignInOutcome.Success, "test-account");
+        provider.Complete(SignInOutcome.Success, "test-token");
         yield return WaitForScene("01.Lobby");
-        Click(FindButton("Sign out"));
+        Click(FindButton("로그아웃"));
         yield return WaitForScene("00.Loading");
 
-        Assert.That(UserData.Current, Is.Null);
+        Assert.That(AccountSession.Auth.CurrentUser, Is.Null);
         Assert.That(provider.SignedOut, Is.True);
         Assert.That(FindButton("Sign in with Google").interactable, Is.True);
     }

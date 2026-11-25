@@ -1,107 +1,137 @@
 using System;
+using Rainbow.Services;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class Login : MonoBehaviour
 {
+    private readonly GoogleSignInRequest request = new GoogleSignInRequest();
     private Button signIn;
+    private Button guest;
     private Text status;
-    private Action stopWaiting;
     private bool pending;
-    private int attempt;
-    private double deadline;
 
     internal event Action SignedIn;
     internal double TimeoutSeconds { get; set; } = 120;
 
     private void Awake()
     {
-        ScreenControls.Label(transform, "Rainbow", 144, 82);
+        ScreenControls.Label(transform, "Rainbow", 185, 82);
         signIn = ScreenControls.GoogleButton(transform, OnClickLogin);
-        status = ScreenControls.Label(transform, "Sign-in status", -170, 32);
+        guest = ScreenControls.Button(transform, "게스트로 시작", -155, OnClickGuest);
+        status = ScreenControls.Label(transform, "Sign-in status", -285, 32);
         status.text = "";
+        SetPending(true);
+    }
+
+    private async void Start()
+    {
+        try
+        {
+            await AccountSession.Auth.Initialize();
+            if (this && isActiveAndEnabled && AccountSession.Auth.CurrentUser != null)
+                SignedIn?.Invoke();
+        }
+        catch (Exception)
+        {
+            if (this)
+                status.text = "계정 서비스를 불러오지 못했습니다. 다시 시도해 주세요.";
+        }
+        finally
+        {
+            if (this)
+                SetPending(false);
+        }
     }
 
     public void OnClickLogin()
     {
-        if (pending || UserData.Current != null || !isActiveAndEnabled)
+        if (!CanStart())
             return;
 
-        pending = true;
-        int activeAttempt = ++attempt;
-        deadline = Time.realtimeSinceStartupAsDouble + TimeoutSeconds;
-        signIn.interactable = false;
-        status.text = "Waiting for Google…";
+        SetPending(true);
+        status.text = "Google 로그인 대기 중…";
+        request.Begin(TimeoutSeconds, CompleteGoogle);
+    }
 
+    private async void OnClickGuest()
+    {
+        if (!CanStart())
+            return;
+
+        SetPending(true);
+        status.text = "게스트 계정에 로그인하는 중…";
         try
         {
-            Action cancel = GoogleSignIn.Provider.Begin((outcome, id) => Complete(activeAttempt, outcome, id));
-            if (pending && attempt == activeAttempt)
-                stopWaiting = cancel;
-            else
-                cancel?.Invoke();
+            await AccountSession.Auth.Initialize();
+            await AccountSession.Auth.SignInAnonymously();
+            NotifySignedIn();
         }
         catch (Exception)
         {
-            Complete(activeAttempt, SignInOutcome.Failed, null);
+            if (this)
+                status.text = "게스트 로그인에 실패했습니다. 다시 시도해 주세요.";
         }
-    }
-
-    private void Update()
-    {
-        if (pending && (!Application.isMobilePlatform || Application.isFocused) && Time.realtimeSinceStartupAsDouble >= deadline)
-            Complete(attempt, SignInOutcome.TimedOut, null);
-    }
-
-    private void Complete(int activeAttempt, SignInOutcome outcome, string id)
-    {
-        if (!pending || activeAttempt != attempt)
-            return;
-
-        StopWaiting();
-        if (outcome == SignInOutcome.Success && !string.IsNullOrWhiteSpace(id))
+        finally
         {
-            UserData.StartSession(id);
-            SignedIn?.Invoke();
-            return;
-        }
-
-        signIn.interactable = true;
-        switch (outcome)
-        {
-            case SignInOutcome.Canceled:
-                status.text = "Sign-in canceled. You can try again.";
-                break;
-            case SignInOutcome.NotConfigured:
-                status.text = "Google sign-in is not configured for this build.";
-                break;
-            case SignInOutcome.Unsupported:
-                status.text = "Google sign-in requires an Android or iOS device.";
-                break;
-            case SignInOutcome.TimedOut:
-                status.text = "Sign-in timed out. Please try again.";
-                break;
-            default:
-                status.text = "Couldn't sign in. Please try again.";
-                break;
+            if (this)
+                SetPending(false);
         }
     }
 
-    private void StopWaiting()
-    {
-        pending = false;
-        Action cancel = stopWaiting;
-        stopWaiting = null;
-        cancel?.Invoke();
-    }
-
+    private void Update() => request.Tick();
     private void OnDisable()
     {
-        if (!pending)
-            return;
+        if (request.IsWaiting)
+        {
+            request.Cancel();
+            SetPending(false);
+        }
+    }
 
-        StopWaiting();
-        signIn.interactable = true;
-        status.text = "";
+    private async void CompleteGoogle(SignInOutcome outcome, string token)
+    {
+        try
+        {
+            if (outcome != SignInOutcome.Success || string.IsNullOrWhiteSpace(token))
+            {
+                status.text = GoogleSignInRequest.Message(outcome);
+                return;
+            }
+
+            await AccountSession.Auth.Initialize();
+            await AccountSession.Auth.SignInWithGoogle(token);
+            NotifySignedIn();
+        }
+        catch (NotSupportedException)
+        {
+            if (this)
+                status.text = "이 빌드에 Firebase Google 로그인 설정이 없습니다.";
+        }
+        catch (Exception)
+        {
+            if (this)
+                status.text = GoogleSignInRequest.Message(SignInOutcome.Failed);
+        }
+        finally
+        {
+            if (this)
+                SetPending(false);
+        }
+    }
+
+    private bool CanStart() => !pending && AccountSession.Auth.CurrentUser == null && isActiveAndEnabled;
+
+    private void NotifySignedIn()
+    {
+        if (this && isActiveAndEnabled && AccountSession.Auth.CurrentUser != null)
+            SignedIn?.Invoke();
+    }
+
+    private void SetPending(bool value)
+    {
+        pending = value;
+        signIn.interactable = !value;
+        guest.interactable = !value;
     }
 }

@@ -46,7 +46,7 @@ internal sealed class GoogleSignIn : IGoogleSignIn
             {
                 bool valid = profile != null && !string.IsNullOrWhiteSpace(profile.UserID)
                     && !string.IsNullOrWhiteSpace(profile.IdToken);
-                completed(valid ? SignInOutcome.Success : SignInOutcome.Failed, valid ? profile.UserID : null);
+                completed(valid ? SignInOutcome.Success : SignInOutcome.Failed, valid ? profile.IdToken : null);
             },
             error => completed(error?.Code == (int)ErrorCode.CANCEL
                 ? SignInOutcome.Canceled : SignInOutcome.Failed, null));

@@ -3,15 +3,15 @@ using Universal.UniversalSDK;
 
 public class GoogleSignInCallbackTests
 {
-    [TestCase("{\"userID\":\"test-user\",\"idToken\":\"test-token\"}", true, "test-user")]
+    [TestCase("{\"userID\":\"test-user\",\"idToken\":\"test-token\"}", true, "test-token")]
     [TestCase("{\"userID\":\"test-user\"}", false, null)]
     [TestCase("invalid-json", false, null)]
-    public void SdkSuccessRequiresAnIdentityAndToken(string payload, bool succeeds, string expectedId)
+    public void SdkSuccessReturnsTheIdTokenRequiredByFirebase(string payload, bool succeeds, string expectedToken)
     {
-        var callback = FlattenAction.JsonFlatten<LoginResult>(result => GoogleSignIn.Complete(result, (outcome, id) =>
+        var callback = FlattenAction.JsonFlatten<LoginResult>(result => GoogleSignIn.Complete(result, (outcome, idToken) =>
         {
             Assert.That(outcome, Is.EqualTo(succeeds ? SignInOutcome.Success : SignInOutcome.Failed));
-            Assert.That(id, Is.EqualTo(expectedId));
+            Assert.That(idToken, Is.EqualTo(expectedToken));
         }));
         callback.CallOk(payload);
     }
@@ -21,10 +21,10 @@ public class GoogleSignInCallbackTests
     [TestCase("invalid-json", false)]
     public void SdkCancellationIsDistinctFromOtherFailures(string payload, bool canceled)
     {
-        var callback = FlattenAction.JsonFlatten<LoginResult>(result => GoogleSignIn.Complete(result, (outcome, id) =>
+        var callback = FlattenAction.JsonFlatten<LoginResult>(result => GoogleSignIn.Complete(result, (outcome, idToken) =>
         {
             Assert.That(outcome, Is.EqualTo(canceled ? SignInOutcome.Canceled : SignInOutcome.Failed));
-            Assert.That(id, Is.Null);
+            Assert.That(idToken, Is.Null);
         }));
         callback.CallError(payload);
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using Rainbow.Services;
 using UnityEngine;
 using UnityEngine.UI;
 using Random = UnityEngine.Random;
@@ -44,6 +45,8 @@ public partial class Game : MonoBehaviour
     bool previousClickMatched;
     TabletScene tablet;
     int tabletPalette;
+    string roundUid;
+    AccountProgress roundProgress;
 
     void Awake()
     {
@@ -147,6 +150,22 @@ public partial class Game : MonoBehaviour
             tablet.FinishFlight();
         }
         soundEffects?.PlayRoundEnd();
+        SaveRoundScore();
+    }
+
+    async void SaveRoundScore()
+    {
+        if (roundUid == null)
+            return;
+
+        try
+        {
+            await roundProgress.RecordScore(roundUid, Score);
+        }
+        catch (Exception)
+        {
+            Debug.LogWarning("Round progress could not be synchronized. The lobby can retry.");
+        }
     }
 
     public void OnClickRetry()
@@ -162,6 +181,8 @@ public partial class Game : MonoBehaviour
 
     void BeginRound()
     {
+        roundUid = AccountSession.Auth?.CurrentUser?.Uid;
+        roundProgress = AccountSession.Progress;
         StopAllCoroutines();
         matchBurst?.ResetRound();
         startingRound = true;
