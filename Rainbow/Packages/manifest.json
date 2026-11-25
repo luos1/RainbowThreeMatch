@@ -42,6 +42,10 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
-    "com.unity.modules.xr": "1.0.0"
+    "com.unity.modules.xr": "1.0.0",
+    "com.google.external-dependency-manager": "https://dl.google.com/games/registry/unity/com.google.external-dependency-manager/com.google.external-dependency-manager-1.2.190.tgz",
+    "com.google.firebase.app": "https://dl.google.com/games/registry/unity/com.google.firebase.app/com.google.firebase.app-14.2.0.tgz",
+    "com.google.firebase.auth": "https://dl.google.com/games/registry/unity/com.google.firebase.auth/com.google.firebase.auth-14.2.0.tgz",
+    "com.google.firebase.firestore": "https://dl.google.com/games/registry/unity/com.google.firebase.firestore/com.google.firebase.firestore-14.2.0.tgz"
   }
 }
