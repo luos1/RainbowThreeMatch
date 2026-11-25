@@ -26,6 +26,7 @@ public class Game : MonoBehaviour
     [SerializeField] Image screen;
     [SerializeField] GameObject alphaScreen;
     [SerializeField] GameObject objGameOver;
+    [SerializeField] MatchBurst matchBurst;
     public HBlocks[] blocks;
 
     public event Action<int> ShowScore;
@@ -76,6 +77,7 @@ public class Game : MonoBehaviour
         if (remainingSeconds <= 0f)
         {
             roundActive = false;
+            matchBurst?.Clear();
             alphaScreen.SetActive(true);
             objGameOver.SetActive(true);
         }
@@ -89,6 +91,7 @@ public class Game : MonoBehaviour
         }
 
         StopAllCoroutines();
+        matchBurst?.ResetRound();
         startingRound = true;
         resolvingBoard = true;
         previousClickMatched = false;
@@ -120,7 +123,8 @@ public class Game : MonoBehaviour
 
         resolvingBoard = true;
         alphaScreen.SetActive(true);
-        if (previousClickMatched)
+        bool chained = previousClickMatched;
+        if (chained)
         {
             SetTimer(Mathf.Min(timeSeconds, remainingSeconds + MatchRules.GetTimeBonus(group.Count)));
         }
@@ -128,6 +132,7 @@ public class Game : MonoBehaviour
 
         Score += MatchRules.GetScore(group.Count);
         ShowScore?.Invoke(Score);
+        matchBurst?.Play(blocks, group, position, chained);
         foreach (var cell in group)
         {
             boardData[cell.x, cell.y] = 0;

@@ -1,24 +1,37 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class Sfx : MonoBehaviour
 {
-    static Sfx sfx;
-    public static Sfx Instnace => sfx;
     [SerializeField] GameObject boom;
-    [SerializeField] GameObject click;
 
-    public void Awake()
-    {
-        sfx = this;
-    }
-    public void Pop(Vector3 uiPos, Color c)
-    {
-        var go = Instantiate(boom);
-        var particle = go.GetComponentInChildren<ParticleSystem>().main;
-        particle.startColor = c;
+    GameObject puff;
 
-        go.transform.position = uiPos;
+    public void Pop(Vector3 uiPosition, Color color)
+    {
+        Clear();
+        if (boom == null)
+            return;
+
+        puff = Instantiate(boom, uiPosition, boom.transform.rotation, transform);
+        var system = puff.GetComponentInChildren<ParticleSystem>();
+        if (system != null)
+        {
+            system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var settings = system.main;
+            settings.startColor = color;
+            system.Play(true);
+        }
+        Destroy(puff, .7f);
     }
+
+    internal void Clear()
+    {
+        if (puff == null)
+            return;
+        puff.SetActive(false);
+        Destroy(puff);
+        puff = null;
+    }
+
+    void OnDisable() => Clear();
 }
