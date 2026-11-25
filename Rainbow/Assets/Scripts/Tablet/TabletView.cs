@@ -37,7 +37,7 @@ internal sealed partial class TabletView
     Vector2 previousScreen;
     int backdropCycle = -1;
     (int hp, int shield, int wave, int fired, int waiting, int blocked, int hits) previousStatus = (-1, -1, -1, -1, -1, -1, -1);
-    internal TabletView(Canvas canvas, Font font, Sprite[] abilities, Action attack, Action hull)
+    internal TabletView(Canvas canvas, Font font, Sprite[] abilities, Sprite[] glyphs, Action attack, Action hull)
     {
         this.font = font;
         abilityArt = abilities;
@@ -53,10 +53,16 @@ internal sealed partial class TabletView
         Graphic(pane, "Divider", 0, 0, .004f, 1, Border);
         var hud = Graphic(pane, "Combat HUD", .027f, .874f, 1, 1, Hull).rectTransform;
         waveText = Label(hud, "Wave", .042f, .58f, .96f, .92f, 45, Accent);
-        hpText = Label(hud, "HP", .042f, .15f, .26f, .52f, 38, TextColor);
+        var repairGlyph = Graphic(hud, "Repair glyph", .042f, .15f, .082f, .52f, Color.white);
+        repairGlyph.sprite = glyphs[4];
+        repairGlyph.preserveAspect = true;
+        hpText = Label(hud, "HP", .09f, .15f, .25f, .52f, 38, TextColor);
         var hpTrack = Graphic(hud, "Health bar", .25f, .25f, .48f, .39f, new Color32(42, 63, 82, 255));
         hpFill = Graphic(hpTrack.rectTransform, "Fill", 0, 0, 1, 1, new Color32(102, 225, 167, 255));
-        shieldText = Label(hud, "Shield", .54f, .15f, .80f, .52f, 38, TextColor);
+        var shieldGlyph = Graphic(hud, "Shield glyph", .519f, .15f, .560f, .52f, Color.white);
+        shieldGlyph.sprite = glyphs[6];
+        shieldGlyph.preserveAspect = true;
+        shieldText = Label(hud, "Shield", .570f, .15f, .80f, .52f, 38, TextColor);
         var shieldTrack = Graphic(hud, "Shield bar", .80f, .25f, .96f, .39f, new Color32(42, 63, 82, 255));
         shieldFill = Graphic(shieldTrack.rectTransform, "Fill", 0, 0, 1, 1, new Color32(102, 171, 255, 255));
 
