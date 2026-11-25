@@ -78,7 +78,7 @@ internal sealed partial class TabletView
         {
             case TabletPhase.Preparation:
                 cardTitle.text = "훈련 출격 준비";
-                cardDetail.text = $"{stats}\n편대와 보스를 격파해 보상을 획득하세요";
+                cardDetail.text = $"{stats}\n편대가 몰려옵니다. 퍼즐로 모함을 지키세요";
                 primaryText.text = "출격";
                 break;
             case TabletPhase.Launching:
@@ -86,10 +86,10 @@ internal sealed partial class TabletView
                 cardDetail.text = stats;
                 break;
             case TabletPhase.Settlement:
-                cardTitle.text = combat.Result == TabletResult.Failed ? "기체 파괴" :
+                cardTitle.text = combat.Result == TabletResult.Failed ? "모함 파괴" :
                     combat.Result == TabletResult.Cleared ? "훈련 목표 달성" : "60초 생존";
                 string boss = combat.Boss.Hp <= 0 && combat.Boss.Spawned ? "보스 격파" : "보스 미격파";
-                cardDetail.text = $"이번 출격 +{TabletProgress.RewardTotal(combat.AwardedFlights)}   ·   보유 {progress.Balance}\n격파 {combat.EnemiesDefeated}/11   ·   {boss}";
+                cardDetail.text = $"이번 출격 +{TabletProgress.RewardTotal(combat.AwardedFlights)}   ·   보유 {progress.Balance}\n격파 {combat.EnemiesDefeated}/{TabletCombat.EnemyCount}   ·   {boss}";
                 primaryText.text = "정비하기";
                 break;
             case TabletPhase.Hangar:

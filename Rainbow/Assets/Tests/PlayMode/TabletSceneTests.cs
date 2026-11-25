@@ -89,7 +89,7 @@ public class TabletSceneTests
             available |= board[x, y] == 4 && MatchRules.FindGroup(board, x, y).Count >= 3;
         Assert.That(available, Is.True);
 
-        combat.Advance(5.1);
+        combat.Advance(.9);
         Assert.That(combat.Hp, Is.EqualTo(9));
         Fill(game, 4, 3);
         Assert.That(Tap(game.blocks[0].blocks[0].GetComponent<Button>()), Is.True);
@@ -103,6 +103,11 @@ public class TabletSceneTests
         }
         yield return null;
         Assert.That(game.MaxColorCount, Is.EqualTo(6));
+        bool blueAvailable = false;
+        for (int x = 0; x < board.GetLength(0); x++)
+        for (int y = 0; y < board.GetLength(1); y++)
+            blueAvailable |= board[x, y] == 6 && MatchRules.FindGroup(board, x, y).Count >= 3;
+        Assert.That(blueAvailable, Is.True);
         Fill(game, 6, 5);
         Assert.That(Tap(game.blocks[0].blocks[0].GetComponent<Button>()), Is.True);
         Assert.That(combat.Shield, Is.EqualTo(3.75f).Within(.001f));
@@ -126,7 +131,7 @@ public class TabletSceneTests
             yield return null;
             Assert.That(combat.Result, Is.EqualTo(TabletResult.Failed));
             Assert.That(game.CanPlay, Is.False);
-            Assert.That(combat.PendingShots + combat.ActiveShots + combat.ActiveEffects, Is.Zero);
+            Assert.That(combat.PendingShots + combat.ActiveShots + combat.ActiveEffects + combat.ActiveHostiles, Is.Zero);
             Assert.That(source.clip.name, Is.EqualTo("error_006"));
 
             yield return new WaitForEndOfFrame();
@@ -166,7 +171,7 @@ public class TabletSceneTests
         Assert.That(Tap(game.blocks[0].blocks[0].GetComponent<Button>()), Is.True);
         Assert.That(combat.OfferedShots, Is.EqualTo(5));
         combat.ApplyMatch(1, 45);
-        for (int i = 0; i < 30 && combat.EnemiesDefeated < 2; i++) combat.Advance(.08);
+        for (int i = 0; i < 45 && (combat.AwardedFlights & 1) == 0; i++) combat.Advance(.08);
         yield return null;
         Assert.That(new TabletProgress(key).Balance, Is.EqualTo(20));
         Assert.That(GameObject.Find("Reward notice").GetComponent<Text>().text, Does.Contain("+20"));
@@ -210,9 +215,8 @@ public class TabletSceneTests
         Assert.That(combat.Hp, Is.EqualTo(11));
         Assert.That(combat.AwardedFlights, Is.Zero);
         Assert.That(game.TimeSeconds, Is.EqualTo(60));
-        combat.Advance(.90);
         combat.ApplyMatch(1, 3);
-        for (int i = 0; i < 25 && combat.HitShots == 0; i++) combat.Advance(1.0 / 60);
+        for (int i = 0; i < 55 && combat.HitShots == 0; i++) combat.Advance(1.0 / 60);
         Assert.That(combat.TotalDamage, Is.EqualTo(1.1f).Within(.001));
 
         yield return OpenPreparation(key);
@@ -224,7 +228,7 @@ public class TabletSceneTests
     public void GeneratedAssetsImportAsCenteredSprites()
     {
         foreach (string name in new[] { "player", "enemy-scout", "enemy-wing", "enemy-elite", "arena",
-                     "straight", "piercing", "spread", "heal", "homing", "shield", "blast", "ring",
+                     "straight", "piercing", "spread", "heal", "homing", "shield", "blast", "ring", "carrier-bow",
                      "burst-1", "burst-2", "burst-3", "burst-4" })
         {
             Sprite sprite = TabletScene.LoadSprite(name);

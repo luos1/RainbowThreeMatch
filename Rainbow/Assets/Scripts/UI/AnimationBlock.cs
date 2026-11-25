@@ -10,6 +10,7 @@ public class AnimationBlock : MonoBehaviour
     [SerializeField] float upScaleDuration = .2f;
 
     Tween dropTween;
+    float dropTimeScale = 1f;
     public bool IsDropping => dropTween != null && dropTween.IsActive();
 
     public void Pop()
@@ -22,7 +23,7 @@ public class AnimationBlock : MonoBehaviour
     {
         ResetAnimation(height * heightUnit);
         gameObject.SetActive(true);
-        dropTween = transform.DOLocalMoveY(0f, (float)height / MaxHeight * maxDropDuration)
+        dropTween = transform.DOLocalMoveY(0f, (float)height / MaxHeight * maxDropDuration * dropTimeScale)
             .SetAutoKill(true)
             .OnKill(() => dropTween = null);
     }
@@ -35,6 +36,7 @@ public class AnimationBlock : MonoBehaviour
     }
 
     internal void Settle() => ResetAnimation(0);
+    internal void UseTabletDropTiming() => dropTimeScale = .68f;
 
     void OnDestroy()
     {

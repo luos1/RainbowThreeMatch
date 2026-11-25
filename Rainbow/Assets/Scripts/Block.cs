@@ -62,6 +62,7 @@ public class Block : MonoBehaviour
     }
 
     internal void Settle() => anim.Settle();
+    internal void UseTabletDropTiming() => anim.UseTabletDropTiming();
 
     public bool CheckDropEnd() => !anim.IsDropping;
 }

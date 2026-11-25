@@ -45,6 +45,7 @@ public class Game : MonoBehaviour
     TabletScene tablet;
     int tabletPalette;
     bool seededTabletHealing;
+    bool seededTabletShield;
 
     void Awake()
     {
@@ -69,7 +70,9 @@ public class Game : MonoBehaviour
         for (int x = 0; x < boardData.GetLength(0); x++)
         for (int y = 0; y < boardData.GetLength(1); y++)
         {
-            blocks[x].blocks[y].SetPosition(x, y);
+            var block = blocks[x].blocks[y];
+            block.SetPosition(x, y);
+            if (tablet != null) block.UseTabletDropTiming();
         }
 
         if (tablet == null)
@@ -165,6 +168,7 @@ public class Game : MonoBehaviour
         Grade = minGrade;
         tabletPalette = 3;
         seededTabletHealing = false;
+        seededTabletShield = false;
         tablet?.ResetRound();
         matchFeedback?.ResetRound(MaxColorCount);
         ShowScore?.Invoke(Score);
@@ -318,7 +322,7 @@ public class Game : MonoBehaviour
         return attack <= 3 ? attack : attack == 4 ? 5 : 7;
     }
 
-    void SyncTabletPalette(bool guaranteeHealing)
+    void SyncTabletPalette(bool guaranteeDefense)
     {
         int count = tablet.Combat.PaletteSize;
         if (count != tabletPalette)
@@ -328,22 +332,33 @@ public class Game : MonoBehaviour
             ShowGrade?.Invoke(Grade);
             matchFeedback.SetPalette(count);
         }
-        if (!guaranteeHealing || seededTabletHealing || count < 4)
-            return;
-        seededTabletHealing = true;
+        if (!guaranteeDefense) return;
+        int center = boardData.GetLength(1) / 2;
+        if (count >= 4 && !seededTabletHealing)
+        {
+            seededTabletHealing = true;
+            SeedTabletDefense(4, center, "초록 3칸으로 모함을 수리해요");
+        }
+        if (count >= 6 && !seededTabletShield)
+        {
+            seededTabletShield = true;
+            SeedTabletDefense(6, center + 1, "파랑 3칸으로 방어막을 켜요");
+        }
+    }
 
+    void SeedTabletDefense(int color, int row, string guidance)
+    {
         for (int x = 0; x < boardData.GetLength(0); x++)
         for (int y = 0; y < boardData.GetLength(1); y++)
-            if (boardData[x, y] == 4 && MatchRules.FindGroup(boardData, x, y).Count >= 3)
+            if (boardData[x, y] == color && MatchRules.FindGroup(boardData, x, y).Count >= MatchRules.MinimumGroupSize)
                 return;
 
-        int center = boardData.GetLength(1) / 2;
         for (int x = 1; x <= 3; x++)
         {
-            boardData[x, center] = 4;
-            blocks[x].blocks[center].ChangeSprite(4);
+            boardData[x, row] = color;
+            blocks[x].blocks[row].ChangeSprite(color);
         }
-        matchFeedback.ShowTabletResult("초록 3칸으로 체력을 회복해요");
+        matchFeedback.ShowTabletResult(guidance);
     }
 
     IEnumerator WaitForDrop()

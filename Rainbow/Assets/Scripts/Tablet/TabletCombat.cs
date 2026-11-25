@@ -4,7 +4,7 @@ using UnityEngine;
 
 internal enum TabletResult { Playing, Failed, Survived, Cleared }
 
-internal sealed class TabletCombat
+internal sealed partial class TabletCombat
 {
     internal const int MaxHp = 10;
     internal const int Duration = 60;
@@ -19,7 +19,6 @@ internal sealed class TabletCombat
     const float BossWarningTime = 1.65f;
     const float AimLead = .50f;
     const float AimRefresh = .14f;
-    const float PlayerSteerSpeed = .88f;
     const float BurstTime = .22f;
     const float ShotSpeed = 3.65f;
     const float HomingTurnRate = 240f;
@@ -27,15 +26,23 @@ internal sealed class TabletCombat
     const double Frame = 1.0 / 60;
     const double ShotInterval = 1.0 / 12;
 
-    // Flight identifiers also select alternating entry sides. Strike times stay independent of motion.
+    // Flights enter from alternating sides. The attack clock opens a firing window, and
+    // a ship at a visible firing position launches an actual projectile.
     static readonly EnemyPlan[] Plans =
     {
-        new EnemyPlan(0, 9, .41f, 2, 1, 0, 0, true), new EnemyPlan(.24f, 13, .58f, 2, 1, 0, 0),
-        new EnemyPlan(6.1f, 17, .27f, 2, 1, 0, 1, true), new EnemyPlan(6.34f, 21, .74f, 2, 1, 0, 1),
-        new EnemyPlan(18, 23, .31f, 3, 1, 1, 2, true), new EnemyPlan(18.24f, 28, .66f, 3, 1, 1, 2),
-        new EnemyPlan(18.48f, 33, .51f, 3, 2, 1, 2, true),
-        new EnemyPlan(38, 43, .26f, 3, 2, 0, 3, true), new EnemyPlan(38.24f, 47, .74f, 3, 2, 0, 3),
-        new EnemyPlan(38.48f, 51, .56f, 3, 2, 0, 3, true), new EnemyPlan(46.25f, 57, .49f, 6, 2, 2, BossFlight, true)
+        new EnemyPlan(0, 3, .41f, 2, 0, 0, true), new EnemyPlan(.18f, 4.2f, .62f, 1, 0, 0),
+        new EnemyPlan(.36f, 5.6f, .24f, 1, 0, 0, true), new EnemyPlan(.54f, 6.45f, .78f, 1, 0, 0),
+        new EnemyPlan(.72f, 7.3f, .50f, 1, 0, 0),
+        new EnemyPlan(7.05f, 8.6f, .70f, 1, 0, 1, true), new EnemyPlan(7.23f, 9.6f, .13f, 2, 0, 1),
+        new EnemyPlan(7.41f, 11, .86f, 1, 0, 1), new EnemyPlan(7.59f, 13.1f, .34f, 2, 0, 1, true),
+        new EnemyPlan(7.77f, 15.4f, .55f, 1, 0, 1),
+        new EnemyPlan(18, 20.3f, .18f, 2, 1, 2), new EnemyPlan(18.17f, 21.5f, .83f, 1, 1, 2),
+        new EnemyPlan(18.34f, 23.3f, .39f, 2, 1, 2, true), new EnemyPlan(18.51f, 26.7f, .66f, 1, 1, 2),
+        new EnemyPlan(25.8f, 29.1f, .25f, 2, 1, 2, true), new EnemyPlan(25.98f, 31.4f, .53f, 2, 1, 2),
+        new EnemyPlan(38, 40, .17f, 2, 1, 3), new EnemyPlan(38.16f, 40.8f, .82f, 1, 0, 3),
+        new EnemyPlan(38.32f, 43, .34f, 2, 1, 3, true), new EnemyPlan(38.48f, 44.2f, .68f, 2, 1, 3, true),
+        new EnemyPlan(38.64f, 46.1f, .48f, 1, 0, 3), new EnemyPlan(43, 48, .25f, 2, 1, 3),
+        new EnemyPlan(43.18f, 49.5f, .75f, 2, 1, 3), new EnemyPlan(46.25f, 47.7f, .5f, 9, 2, BossFlight, true)
     };
 
     readonly Queue<Volley> queue = new Queue<Volley>();
@@ -48,6 +55,7 @@ internal sealed class TabletCombat
     float attackPower;
 
     internal float Elapsed => (float)elapsed;
+    internal static int EnemyCount => Plans.Length;
     internal float Remaining => Duration - Elapsed;
     internal int Hp { get; private set; }
     internal int Hull { get; private set; }
@@ -56,7 +64,7 @@ internal sealed class TabletCombat
     internal int PaletteSize => Elapsed >= 42 ? 7 : Elapsed >= 30 ? 6 : Elapsed >= 18 ? 5 : Elapsed >= 4 ? 4 : 3;
     internal int Wave => Elapsed >= 38 ? 3 : Elapsed >= 18 ? 2 : 1;
     internal TabletResult Result { get; private set; }
-    internal Vector2 Player { get; private set; }
+    internal Vector2 Player { get; } = new Vector2(.5f, 0);
     internal IReadOnlyList<Shot> Shots => shots;
     internal IReadOnlyList<Enemy> Enemies => enemies;
     internal Enemy Boss => enemies[enemies.Length - 1];
@@ -107,9 +115,9 @@ internal sealed class TabletCombat
         AwardedFlights = 0;
         EnemiesDefeated = OfferedShots = FiredShots = HitShots = ExpiredShots = DroppedOnEnd = BlockedDamage = LastFiredColor = 0;
         TotalDamage = 0;
-        Player = new Vector2(.5f, .12f);
         Result = TabletResult.Playing;
         Array.Clear(enemies, 0, enemies.Length);
+        ResetHostileStats();
         ClearTransient();
     }
 
@@ -118,10 +126,12 @@ internal sealed class TabletCombat
         queue.Clear();
         Array.Clear(shots, 0, shots.Length);
         Array.Clear(effects, 0, effects.Length);
+        ClearHostiles();
         for (int i = 0; i < enemies.Length; i++)
         {
             enemies[i].Velocity = Vector2.zero;
             enemies[i].HitTime = 0;
+            enemies[i].MuzzleTime = 0;
         }
         PendingShots = ActiveShots = 0;
         Shield = 0;
@@ -176,6 +186,7 @@ internal sealed class TabletCombat
             enemy.Velocity = enemy.Spawned ? (position - enemy.Position) / Mathf.Max(delta, .0001f) : Vector2.zero;
             enemy.Position = position;
             enemy.HitTime = Mathf.Max(0, enemy.HitTime - delta);
+            enemy.MuzzleTime = Mathf.Max(0, enemy.MuzzleTime - delta);
             if (!enemy.Spawned)
             {
                 enemy.Spawned = true;
@@ -183,7 +194,7 @@ internal sealed class TabletCombat
                 enemy.Hp = enemy.MaxHp = plan.Hp;
             }
 
-            enemy.Warning = !enemy.Attacked && elapsed >= plan.Attack - 1;
+            enemy.Warning = !enemy.Attacked && elapsed >= FireAt(plan, enemy) - HostileWarning;
         }
 
         if (!IsTargetable(target) || elapsed >= aimUntil)
@@ -191,21 +202,11 @@ internal sealed class TabletCombat
             target = SelectTarget();
             aimUntil = elapsed + AimRefresh;
         }
-        float destination = IsTargetable(target) ? enemies[target].Position.x : .5f;
-        Player = new Vector2(Mathf.MoveTowards(Player.x, Mathf.Clamp(destination, .14f, .86f), PlayerSteerSpeed * delta), Player.y);
-
         UpdateShots(delta);
         if (PendingShots > 0 && IsTargetable(target) && elapsed + 1e-7 >= nextShot && ActiveShots < ShotCapacity)
             Fire();
 
-        for (int i = 0; i < Plans.Length; i++)
-        {
-            if (!IsAlive(i) || enemies[i].Attacked || elapsed < Plans[i].Attack)
-                continue;
-            enemies[i].Attacked = true;
-            enemies[i].Warning = false;
-            TakeDamage(Plans[i].Damage);
-        }
+        UpdateHostileFire(delta);
 
         Result = Resolve(Hp, elapsed, EnemiesDefeated == Plans.Length);
         if (Result != TabletResult.Playing)
@@ -220,20 +221,6 @@ internal sealed class TabletCombat
         if (hp <= 0) return TabletResult.Failed;
         if (cleared) return TabletResult.Cleared;
         return seconds >= Duration ? TabletResult.Survived : TabletResult.Playing;
-    }
-
-    void TakeDamage(int damage)
-    {
-        if (Shield > 0)
-        {
-            BlockedDamage += damage;
-            return;
-        }
-        if (elapsed >= invulnerableUntil)
-        {
-            Hp = Math.Max(0, Hp - damage);
-            invulnerableUntil = elapsed + .35;
-        }
     }
 
     int SelectTarget()
@@ -285,8 +272,8 @@ internal sealed class TabletCombat
         if (dive >= 1) return rally;
 
         float arc = Mathf.Sin(dive * Mathf.PI);
-        float depth = plan.Style == 1 ? .29f : .255f;
-        float turn = (left ? .19f : -.19f) * Mathf.Sin(dive * Mathf.PI * 2) * arc;
+        float depth = plan.Style == 1 ? .35f : .30f;
+        float turn = (left ? .15f : -.15f) * Mathf.Sin(dive * Mathf.PI * 2) * arc;
         return rally + new Vector2(turn, -depth * arc * arc);
     }
 
@@ -294,7 +281,8 @@ internal sealed class TabletCombat
     {
         var volley = queue.Peek();
         int index = Array.FindIndex(shots, shot => !shot.Active);
-        Vector2 origin = Player + Vector2.up * .04f;
+        int muzzle = FiredShots % muzzleTimes.Length;
+        Vector2 origin = CarrierMuzzle(muzzle);
         var plan = Plans[target];
         float flight = Vector2.Distance(enemies[target].Position, origin) / ShotSpeed;
         var direction = (PositionAt(plan, target, Elapsed - plan.Spawn + flight * AimLead) - origin).normalized;
@@ -306,6 +294,7 @@ internal sealed class TabletCombat
             Direction = direction, Lifetime = 1.25f
         };
         nextShot = elapsed + ShotInterval;
+        muzzleTimes[muzzle] = .13f;
         PendingShots--;
         ActiveShots++;
         FiredShots++;
@@ -455,8 +444,8 @@ internal sealed class TabletCombat
     internal struct Enemy
     {
         internal bool Spawned, Warning, Attacked;
-        internal int Style, HitColor;
-        internal float Hp, MaxHp, HitTime;
+        internal int Style, HitColor, Volleys;
+        internal float Hp, MaxHp, HitTime, MuzzleTime;
         internal Vector2 Position, Velocity, HitDirection;
     }
 
@@ -486,15 +475,14 @@ internal sealed class TabletCombat
     readonly struct EnemyPlan
     {
         internal readonly float Spawn, Attack, Lane, Hp;
-        internal readonly int Damage, Style, Flight;
+        internal readonly int Style, Flight;
         internal readonly bool Dives;
-        internal EnemyPlan(float spawn, float attack, float lane, float hp, int damage, int style, int flight, bool dives = false)
+        internal EnemyPlan(float spawn, float attack, float lane, float hp, int style, int flight, bool dives = false)
         {
             Spawn = spawn;
             Attack = attack;
             Lane = lane;
             Hp = hp;
-            Damage = damage;
             Style = style;
             Flight = flight;
             Dives = dives;
