@@ -2530,6 +2530,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   boom: {fileID: 100000, guid: 83cd9cc9f9c88824ba18dc59b05ae328, type: 3}
+  match: {fileID: 8300000, guid: 6db270e1836f4b75b8e67021f21b2d94, type: 3}
+  bigMatch: {fileID: 8300000, guid: 7bd65a4f73c1408c9831060dec4b19eb, type: 3}
+  miss: {fileID: 8300000, guid: cc28abfe059b4ff98b4c64bea096f485, type: 3}
+  roundEnd: {fileID: 8300000, guid: e547f77065cf443f894051e96874c9bf, type: 3}
+  retry: {fileID: 8300000, guid: 21949a54e8f342568f773d805cf685f5, type: 3}
 --- !u!1 &378803651
 GameObject:
   m_ObjectHideFlags: 0
@@ -10829,6 +10834,7 @@ MonoBehaviour:
   objGameOver: {fileID: 1864685750}
   matchBurst: {fileID: 1586888032}
   matchFeedback: {fileID: 1586888033}
+  soundEffects: {fileID: 363877479}
   minGrade: 0
   timeSeconds: 60
   blocks:

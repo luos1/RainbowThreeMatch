@@ -28,6 +28,7 @@ public class Game : MonoBehaviour
     [SerializeField] GameObject objGameOver;
     [SerializeField] MatchBurst matchBurst;
     [SerializeField] MatchFeedbackPanel matchFeedback;
+    [SerializeField] Sfx soundEffects;
     public HBlocks[] blocks;
 
     public event Action<int> ShowScore;
@@ -56,7 +57,7 @@ public class Game : MonoBehaviour
             blocks[x].blocks[y].SetPosition(x, y);
         }
 
-        OnClickRetry();
+        BeginRound();
     }
 
     void OnDestroy()
@@ -81,6 +82,7 @@ public class Game : MonoBehaviour
             matchBurst?.Clear();
             alphaScreen.SetActive(true);
             objGameOver.SetActive(true);
+            soundEffects?.PlayRoundEnd();
         }
     }
 
@@ -91,6 +93,12 @@ public class Game : MonoBehaviour
             return;
         }
 
+        BeginRound();
+        soundEffects?.PlayRetry();
+    }
+
+    void BeginRound()
+    {
         StopAllCoroutines();
         matchBurst?.ResetRound();
         startingRound = true;
@@ -121,7 +129,10 @@ public class Game : MonoBehaviour
         {
             previousClickMatched = false;
             if (group.Count > 0)
+            {
                 matchFeedback?.ShowFailure(boardData[position.x, position.y], group.Count);
+                soundEffects?.PlayMiss();
+            }
             return;
         }
 
@@ -137,6 +148,7 @@ public class Game : MonoBehaviour
 
         Score += MatchRules.GetScore(group.Count);
         ShowScore?.Invoke(Score);
+        soundEffects?.PlayMatch(group.Count, chained);
         matchBurst?.Play(blocks, group, position, chained);
         foreach (var cell in group)
         {
