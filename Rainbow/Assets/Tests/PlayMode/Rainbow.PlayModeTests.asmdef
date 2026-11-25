@@ -2,6 +2,7 @@
     "name": "Rainbow.PlayModeTests",
     "references": [
         "Rainbow.Game",
+        "Rainbow.UniversalSDK",
         "UnityEngine.UI"
     ],
     "optionalUnityReferences": [

@@ -1,12 +1,14 @@
+using UnityEngine;
 
-
-public class UserData
+public sealed class UserData
 {
-    public string ID => id;
-    public string Password => password;
-    public int HighScore => highscore;
+    public string ID { get; }
+    public static UserData Current { get; private set; }
 
-    string id;
-    string password;
-    int highscore;
+    private UserData(string id) => ID = id;
+
+    internal static void StartSession(string id) => Current = new UserData(id);
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    internal static void ClearSession() => Current = null;
 }

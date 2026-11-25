@@ -3,6 +3,7 @@ namespace Universal.UniversalSDK
 {
     public class NativeInterface
     {
+        public static bool HasGoogleConfiguration() => false;
         public static void SetupSDK() { }
         public static void Login(string identifier, LoginType loginType) { }
         public static void Logout() { }

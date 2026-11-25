@@ -12,10 +12,24 @@ namespace Universal.UniversalSDK
         public static void Login(LoginType loginType,                                 
                                  Action<Result<LoginResult>> action)
         {
-            var identifier = AddAction(FlattenAction.JsonFlatten<LoginResult>(action));
+            UniversalSDK.Ins.BeginLogin(loginType, action);
+        }
 
-            NativeInterface.Login(identifier, loginType);
-        }        
+        internal static Action BeginLogin(LoginType loginType, Action<Result<LoginResult>> action)
+        {
+            var identifier = AddAction(FlattenAction.JsonFlatten<LoginResult>(action));
+            try
+            {
+                NativeInterface.Login(identifier, loginType);
+            }
+            catch
+            {
+                actions.Remove(identifier);
+                throw;
+            }
+
+            return () => actions.Remove(identifier);
+        }
 
         static string AddAction(FlattenAction action)
         {
@@ -26,7 +40,7 @@ namespace Universal.UniversalSDK
 
         static FlattenAction PopActionFromPayload(CallbackMessageForUnity payload)
         {
-            var identifier = payload.Identifier;
+            var identifier = payload?.Identifier;
             if (identifier == null)
             {
                 return null;
@@ -40,9 +54,21 @@ namespace Universal.UniversalSDK
             return null;
         }        
 
+        private static CallbackMessageForUnity ParsePayload(string value)
+        {
+            try
+            {
+                return CallbackMessageForUnity.FromJson(value);
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
+        }
+
         public static void _OnApiOk(string result)
         {
-            var payload = CallbackMessageForUnity.FromJson(result);
+            var payload = ParsePayload(result);
             var action = PopActionFromPayload(payload);
             if (action != null)
             {
@@ -52,7 +78,7 @@ namespace Universal.UniversalSDK
 
         public static void _OnApiError(string result)
         {
-            var payload = CallbackMessageForUnity.FromJson(result);
+            var payload = ParsePayload(result);
             var action = PopActionFromPayload(payload);
             if (action != null)
             {

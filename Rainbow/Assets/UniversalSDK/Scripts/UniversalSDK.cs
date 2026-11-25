@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Scripting;
 
 namespace Universal.UniversalSDK
 {
@@ -19,6 +19,7 @@ namespace Universal.UniversalSDK
             else if (instance != this)
             {
                 Destroy(gameObject);
+                return;
             }
             DontDestroyOnLoad(gameObject);
             SetupSDK();
@@ -45,7 +46,12 @@ namespace Universal.UniversalSDK
         public void Login(LoginType loginType,
                           Action<Result<LoginResult>> action)
         {            
-            UniversalAPI.Login(loginType, action);
+            BeginLogin(loginType, action);
+        }
+
+        public Action BeginLogin(LoginType loginType, Action<Result<LoginResult>> action)
+        {
+            return UniversalAPI.BeginLogin(loginType, action);
         }
 
         public void Logout()
@@ -58,15 +64,15 @@ namespace Universal.UniversalSDK
             NativeInterface.OpenCustomTabView(url);            
         }        
 
+        [Preserve]
         public void OnApiOk(string result)
         {            
-            result.Log();
             UniversalAPI._OnApiOk(result);
         }
 
+        [Preserve]
         public void OnApiError(string result)
         {            
-            result.Log();
             UniversalAPI._OnApiError(result);
         }
     }
