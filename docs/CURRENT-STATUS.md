@@ -50,8 +50,8 @@
 - 기능·설계 PR #5~#14 모두 main 병합 완료. 각 PR의 HEAD를 고정해서 merge commit 방식으로 통합했고 브랜치는 삭제하지 않았다.
 - 문서 추가 전 통합 main 커밋: `dc35325f7dfceaa4dbcebd113d52a2a5942f30b0`.
 - main의 `Rainbow/` tree `8576e22f803c17456760da4daddec798792a88ba`는 별도 통합 검증 사본의 소스 tree와 일치한다. 문서 PR #15는 게임 코드를 변경하지 않는다.
-- 이번 Unity 2022.3.8f1 통합 C# 컴파일은 성공했다. 기존 80건 통과 XML은 직접 재확인했다.
-- 새 배치 검사는 테스트의 `WaitForEndOfFrame`이 배치 모드에서 재개되지 않아 결과 XML 없이 중단했다. 이는 [Unity 공식 제한](https://docs.unity3d.com/kr/current/ScriptReference/WaitForEndOfFrame.html)이다. 그 뒤 화면이 있는 Editor 재검사를 시작했지만 이 기록 시점에는 새 전체 검사 결과가 아직 확보되지 않았다. 기존 80건 통과를 이번 새 통합 검사 결과로 바꾸어 보고하지 않는다.
+- 이번 Unity 2022.3.8f1 통합 C# 컴파일은 성공했다. 화면이 있는 Editor에서 새 통합 Play Mode 검사도 80건 전부 통과했고 실패·건너뜀은 0이다. 2026-11-26 00:37:38~00:38:26 KST 실행, 47.881초. 증거는 `gui-playmode.xml`이다. 기존 통과 기록을 재사용한 수치가 아니다.
+- 첫 배치 검사는 테스트의 `WaitForEndOfFrame`이 배치 모드에서 재개되지 않아 결과 XML 없이 중단했다. 이는 [Unity 공식 제한](https://docs.unity3d.com/kr/current/ScriptReference/WaitForEndOfFrame.html)이다. 해당 프로세스만 종료하고 화면이 있는 Editor로 실행 방식을 바꾸어 위 새 검사 결과를 확보했다. 제품 코드를 우회하거나 테스트를 생략하지 않았다.
 - 실제 기기·OAuth는 추가 검증하지 않았다. 시뮬레이터는 취소 상태를 유지한다. 위 미구현 재미 개선을 이번 병합에서 구현했다고 주장하지 않는다.
 - 로컬의 기존 `.gitignore`, `.claude-flow/`, `LOCAL-VALIDATION.md` 변경은 이번 문서 커밋에 포함하지 않았다. 원래 작업 트리와 기존 Play용 Editor를 보존했다.
-- 로컬 증거: `/Volumes/Data/Unity/QA/RainbowAllMerge-20261126/`의 `playmode.log`, `gui-playmode.log`와 프로세스 샘플. 기존 통과 증거: `/Volumes/Data/Unity/QA/RainbowTabletPressure-20261125/pressure-release-playmode.xml`.
+- 로컬 증거: `/Volumes/Data/Unity/QA/RainbowAllMerge-20261126/`의 `gui-playmode.xml`, `gui-playmode.log`, 첫 배치 시도의 `playmode.log`와 프로세스 샘플. 기존 통과 증거: `/Volumes/Data/Unity/QA/RainbowTabletPressure-20261125/pressure-release-playmode.xml`.
