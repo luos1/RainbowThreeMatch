@@ -38,7 +38,10 @@ public sealed class MatchBurst : MonoBehaviour
         Color rim = Color.Lerp(color, new Color(.12f, .09f, .23f), .40f);
         Color light = Color.Lerp(color, Color.white, .42f);
         float power = Mathf.Clamp01((group.Count - 3) * .075f + (chained ? .32f : 0f));
-        if (particles != null)
+        // The legacy prefab draws through ParticleCam outside the canvas masks.
+        var offset = impact - layer.rect.center;
+        var room = layer.rect.size * .5f - new Vector2(Mathf.Abs(offset.x), Mathf.Abs(offset.y));
+        if (particles != null && Mathf.Min(room.x, room.y) >= unit * 1.6f)
             particles.Pop(layer.TransformPoint(impact), color);
 
         Vector2 average = Vector2.zero;

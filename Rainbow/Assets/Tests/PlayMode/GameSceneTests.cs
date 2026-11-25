@@ -121,7 +121,7 @@ public class GameSceneTests
         ClickVisibleButton(game.blocks[match.x].blocks[match.y].GetComponent<Button>());
         Assert.That(burst.GetComponentsInChildren<Graphic>(), Is.Not.Empty);
         var particles = Object.FindObjectOfType<Sfx>().transform;
-        Assert.That(particles.GetComponentsInChildren<ParticleSystem>(), Has.Length.EqualTo(1));
+        Assert.That(particles.GetComponentsInChildren<ParticleSystem>().Length, Is.LessThanOrEqualTo(1));
 
         typeof(Game).GetField("remainingSeconds", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(game, 0f);
         yield return WaitFor(() => game.TimeSeconds == 0, "timeout during burst");
@@ -237,6 +237,45 @@ public class GameSceneTests
         Assert.That(fit.scale, Is.InRange(.85f, 1.14f));
         Assert.That(safe.Contains(fit.panel.min), Is.True);
         Assert.That(safe.Contains(fit.hud.max), Is.True);
+    }
+
+    [UnityTest]
+    public IEnumerator FallingTileOnlyRendersInsideTheBoard()
+    {
+        yield return SceneManager.LoadSceneAsync("02.Game");
+        var game = Game.instance;
+        yield return WaitFor(() => game.CanPlay, "initial drop");
+        var topTile = game.blocks[2].blocks[0];
+        var graphic = topTile.VisualRect.GetComponent<Image>();
+
+        topTile.Show(1, 9);
+        yield return null;
+        Canvas.ForceUpdateCanvases();
+        Assert.That(graphic.canvasRenderer.cull, Is.True, "a tile above the board is clipped before it enters the HUD");
+
+        yield return WaitFor(topTile.CheckDropEnd, "test tile lands");
+        Canvas.ForceUpdateCanvases();
+        Assert.That(graphic.canvasRenderer.cull, Is.False, "the landed tile is visible in its original position");
+    }
+
+    [UnityTest]
+    public IEnumerator EdgeMatchesKeepHudClearOfTheCameraSpacePuff()
+    {
+        yield return SceneManager.LoadSceneAsync("02.Game");
+        var game = Game.instance;
+        yield return WaitFor(() => game.CanPlay, "initial drop");
+        var effect = game.GetComponent<MatchBurst>();
+        var particles = Object.FindObjectOfType<Sfx>();
+
+        effect.Play(game.blocks, new List<(int, int)> { (2, 3), (2, 4), (2, 5) }, (2, 4), false);
+        Assert.That(particles.GetComponentsInChildren<ParticleSystem>(), Has.Length.EqualTo(1));
+
+        effect.Play(game.blocks, new List<(int, int)> { (0, 0), (1, 0), (0, 1) }, (0, 0), false);
+        Assert.That(particles.GetComponentsInChildren<ParticleSystem>(), Is.Empty,
+            "the camera-space puff must not reach the HUD at the board edge");
+        var layer = game.transform.Find("Game/Match Burst");
+        Assert.That(layer.GetComponentsInChildren<Image>(), Is.Not.Empty,
+            "the edge match still draws its clipped UI burst");
     }
 
     static IEnumerator WaitFor(Func<bool> condition, string phase, float timeout = 5f)
