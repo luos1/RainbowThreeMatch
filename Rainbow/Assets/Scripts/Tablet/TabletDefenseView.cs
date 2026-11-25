@@ -74,7 +74,7 @@ internal sealed partial class TabletView
             var tint = ImpactColors[state.LastFiredColor];
             tint.a = Mathf.Clamp01(flash / .09f);
             carrierMuzzles[i].color = tint;
-            Place(carrierMuzzles[i], state.CarrierMuzzle(i), unit * .056f);
+            Place(carrierMuzzles[i], state.CarrierMuzzle(i), unit * weaponFeedback.FlashSize);
         }
 
         bool blocked = state.ShieldFlash >= state.HullFlash;

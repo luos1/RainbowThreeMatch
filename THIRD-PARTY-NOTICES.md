@@ -15,3 +15,9 @@ Downloaded from the original uploader's [release ZIP](https://opengameart.org/si
 | Retry | `click_001.ogg` |
 
 Audio files are under `Rainbow/Assets/Audio/Kenney/`.
+
+## Sci-Fi Sounds 1.0 by Kenney
+
+The tablet carrier's four attack levels use `laserSmall_000.ogg`, `laserSmall_003.ogg`, `laserRetro_000.ogg`, and `laserLarge_000.ogg`, in order. The original Ogg files are unmodified under `Rainbow/Assets/Resources/Tablet/SciFiSounds/`. The pack uses the **CC0 1.0 Universal** dedication. [Kenney asset page](https://kenney.nl/assets/sci-fi-sounds) · [Kenney's OpenGameArt submission](https://opengameart.org/content/sci-fi-sounds)
+
+The [release ZIP](https://opengameart.org/sites/default/files/sci-fi_sounds.zip) has SHA-256 `119340f351a5098ad814f78719438c0da355a9ce8a4c8a3af6a8d48aa3d49e04`. The included [license](Rainbow/Assets/Resources/Tablet/SciFiSounds/License.txt) is from the archive with whitespace normalized.
