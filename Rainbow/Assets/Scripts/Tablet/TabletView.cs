@@ -26,8 +26,8 @@ internal sealed partial class TabletView
     readonly RectTransform safeRoot, arena;
     readonly Image player, hpFill, shieldFill;
     readonly Text hpText, shieldText, waveText, shotsText;
-    readonly Image[] enemySprites = new Image[TabletCombat.EnemyCount], warnings = new Image[TabletCombat.EnemyCount];
-    readonly Image[] enemyBars = new Image[TabletCombat.EnemyCount], enemyTrails = new Image[TabletCombat.EnemyCount];
+    readonly Image[] enemySprites = new Image[TabletCombat.EnemyCapacity], warnings = new Image[TabletCombat.EnemyCapacity];
+    readonly Image[] enemyBars = new Image[TabletCombat.EnemyCapacity], enemyTrails = new Image[TabletCombat.EnemyCapacity];
     readonly Image[] backdropTiles = new Image[2];
     readonly TabletStarFlow starFlow;
     readonly Image[] shotSprites = new Image[TabletCombat.ShotCapacity], burstSprites = new Image[TabletCombat.EffectCapacity];
@@ -163,7 +163,8 @@ internal sealed partial class TabletView
                 Place(enemyTrails[i], enemy.Position - enemy.Velocity.normalized * (.025f + strength * .038f), shipSize);
             }
             enemySprites[i].sprite = enemyArt[enemy.Style];
-            enemySprites[i].color = Color.Lerp(Color.white, ImpactColors[enemy.HitColor], hit * .85f);
+            Color formationColor = enemy.Reinforcement ? new Color(1f, .80f, .66f) : Color.white;
+            enemySprites[i].color = Color.Lerp(formationColor, ImpactColors[enemy.HitColor], hit * .85f);
             enemySprites[i].rectTransform.localRotation = Quaternion.Euler(0, 0, bank);
             Place(enemySprites[i], position, shipSize);
             enemyBars[i].color = Color.Lerp(EnemyHealth, Color.white, hit);

@@ -242,13 +242,79 @@ public class TabletCombatTests
     {
         var combat = new TabletCombat();
         KeepAlive(combat, 50);
-        foreach (var enemy in combat.Enemies)
+        for (int i = 0; i < TabletCombat.EnemyCount; i++)
         {
+            var enemy = combat.Enemies[i];
             Assert.That(enemy.Spawned, Is.True);
             Assert.That(enemy.Position.x, Is.InRange(.04f, .96f));
             Assert.That(enemy.Position.y, Is.InRange(.20f, .96f));
         }
         Assert.That(combat.TotalStartingEnemyHp, Is.EqualTo(44));
+    }
+
+    [Test]
+    public void OnlyOneDoubleBatchCanBeQueuedAndReinforcementsDoNotAwardACredit()
+    {
+        var combat = new TabletCombat();
+        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.Queued));
+        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.AlreadyQueued));
+        Assert.That(combat.PlannedEnemies, Is.EqualTo(29));
+        combat.RegisterMiss();
+        combat.ApplyMatch(1, 3);
+        Assert.That(combat.FailureStreak, Is.Zero);
+        Assert.That(combat.ReinforcementsPending, Is.EqualTo(5));
+        KeepAlive(combat, 9);
+        Assert.That(combat.ReinforcementsArrived, Is.EqualTo(5));
+        Assert.That(combat.ReinforcementsPending, Is.Zero);
+
+        var hit = typeof(TabletCombat).GetMethod("HurtEnemy",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        int awardsBefore = combat.AwardedFlights;
+        for (int i = TabletCombat.EnemyCount; i < combat.PlannedEnemies; i++)
+            hit.Invoke(combat, new object[] { i, 50f, 1, Vector2.up });
+        Assert.That(combat.AwardedFlights, Is.EqualTo(awardsBefore));
+    }
+
+    [Test]
+    public void AFinalSupportBatchCanArriveDuringBossAndResetWithTheSortie()
+    {
+        var combat = new TabletCombat();
+        KeepAlive(combat, 47);
+        Assert.That(combat.Boss.Spawned && combat.Boss.Hp > 0, Is.True);
+        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.SupportQueued));
+        combat.Advance(.05);
+        Assert.That(combat.ReinforcementsArrived, Is.EqualTo(3));
+        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.SupportUsed));
+        int bosses = 0;
+        foreach (var enemy in combat.Enemies) if (enemy.Spawned && enemy.Style == 2) bosses++;
+        Assert.That(bosses, Is.EqualTo(1));
+        combat.Reset();
+        Assert.That(combat.PlannedEnemies, Is.EqualTo(TabletCombat.EnemyCount));
+        Assert.That(combat.FailureStreak + combat.ReinforcementsPending + combat.ReinforcementsArrived, Is.Zero);
+    }
+
+    [Test]
+    public void EvenALastSecondSupportBatchArrivesAndStopsAtTheRoundEnd()
+    {
+        var combat = new TabletCombat();
+        KeepAlive(combat, 59);
+        combat.ApplyMatch(4, 5);
+        combat.ApplyMatch(6, 5);
+        combat.Advance(.90);
+        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.SupportQueued));
+        combat.Advance(.025);
+        Assert.That(combat.ReinforcementsArrived, Is.EqualTo(3));
+        combat.RegisterMiss();
+        combat.Advance(.1);
+        Assert.That(combat.Result, Is.EqualTo(TabletResult.Survived));
+        Assert.That(combat.FailureStreak + combat.ReinforcementsPending + combat.ActiveHostiles, Is.Zero);
+    }
+
+    static TabletMissOutcome ThreeMisses(TabletCombat combat)
+    {
+        combat.RegisterMiss();
+        combat.RegisterMiss();
+        return combat.RegisterMiss();
     }
 
     [Test]

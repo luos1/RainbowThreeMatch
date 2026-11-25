@@ -89,7 +89,7 @@ internal sealed partial class TabletView
                 cardTitle.text = combat.Result == TabletResult.Failed ? "모함 파괴" :
                     combat.Result == TabletResult.Cleared ? "훈련 목표 달성" : "60초 생존";
                 string boss = combat.Boss.Hp <= 0 && combat.Boss.Spawned ? "보스 격파" : "보스 미격파";
-                cardDetail.text = $"이번 출격 +{TabletProgress.RewardTotal(combat.AwardedFlights)}   ·   보유 {progress.Balance}\n격파 {combat.EnemiesDefeated}/{TabletCombat.EnemyCount}   ·   {boss}";
+                cardDetail.text = $"이번 출격 +{TabletProgress.RewardTotal(combat.AwardedFlights)}   ·   보유 {progress.Balance}\n격파 {combat.EnemiesDefeated}/{combat.PlannedEnemies}   ·   {boss}";
                 primaryText.text = "정비하기";
                 break;
             case TabletPhase.Hangar:

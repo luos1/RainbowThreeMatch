@@ -10,7 +10,7 @@ public sealed class TabletScene : MonoBehaviour
     internal const float LaunchTime = .55f;
     const float PurchaseLockTime = .25f;
     static readonly string[] ColorNames = { "", "빨강", "주황", "노랑", "초록", "하늘", "파랑", "보라" };
-    static readonly string[] AbilityNames = { "", "직선탄", "관통탄", "확산탄", "", "유도탄", "", "폭발탄" };
+    static readonly string[] AbilityNames = { "", "직선탄", "관통탄", "확산탄", "수리", "유도탄", "쉴드", "폭발탄" };
     static readonly string[] AbilityAssets = { "", "straight", "piercing", "spread", "heal", "homing", "shield", "blast" };
     static readonly string[] GlyphAssets = { "", "straight", "piercing", "spread", "repair", "homing", "shield", "blast" };
 
@@ -61,6 +61,7 @@ public sealed class TabletScene : MonoBehaviour
 
     internal Sprite[] TileGlyphs => glyphs;
     internal Sprite GetTileGlyph(int color) => glyphs[color];
+    internal static string AbilityName(int color) => AbilityNames[color];
 
     internal void ResetRound()
     {

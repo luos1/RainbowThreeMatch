@@ -52,6 +52,8 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
     Text palette;
     Text status;
     Text detail;
+    Text guide, pressure;
+    (int active, int seconds, int supply, bool preview, int unlocked, int misses, int pending, bool arrived) lastGuide;
     Canvas canvas;
     MatchBurst matchBurst;
     Vector2 boardSize;
@@ -70,6 +72,11 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         status.text = "같은 색 3개부터 터져요";
         SetStatusGlyph(0);
         detail.text = "맞닿은 칸은 다음 색으로 바뀌어요";
+        if (tablet != null)
+        {
+            lastGuide = default;
+            UpdateTabletBoardGuidance(0, 0, false, 0, 0, 0, false);
+        }
         RefreshPalette();
         RefreshMarks(false);
     }
@@ -83,6 +90,73 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         SetStatusGlyph(0);
         detail.text = "같은 색이 3개 이상 이어진 곳을 눌러요";
         RefreshMarks(true);
+    }
+
+    internal void ShowTabletMiss(int color, int connected, TabletMissOutcome outcome)
+    {
+        ShowFailure(color, connected);
+        switch (outcome)
+        {
+            case TabletMissOutcome.Queued:
+                detail.text = "3회 실패 · 다음 소형 편대 2배";
+                break;
+            case TabletMissOutcome.SupportQueued:
+                detail.text = "3회 실패 · 소형 지원편대 출동";
+                break;
+            case TabletMissOutcome.AlreadyQueued:
+                detail.text = "3회 실패 · 이미 증원 대기 중";
+                break;
+            case TabletMissOutcome.SupportUsed:
+                detail.text = "3회 실패 · 마지막 지원편대 사용 완료";
+                break;
+            default:
+                detail.text = $"실패 {tablet.Combat.FailureStreak}/3 · 세 번이면 증원";
+                break;
+        }
+    }
+
+    internal void ShowTabletNoMoves()
+    {
+        matchColor = 0;
+        ClearTransitions();
+        SetStatusGlyph(0);
+        status.color = SecondaryText;
+        status.text = "연결할 칸이 없어 보드를 재배치해요";
+        detail.text = "실패 횟수는 그대로예요";
+        RefreshMarks(false);
+    }
+
+    internal void UpdateTabletBoardGuidance(float elapsed, int supply, bool preview, int unlocked,
+        int misses, int pending, bool arrived)
+    {
+        int next = activeColors < 7 ? activeColors + 1 : 0;
+        int seconds = next == 0 ? 0 : Mathf.Max(0, Mathf.CeilToInt(TabletCombat.UnlockSecond(next) - elapsed));
+        var current = (activeColors, seconds, supply, preview, unlocked, misses, pending, arrived);
+        if (current == lastGuide) return;
+        lastGuide = current;
+
+        if (supply > 0)
+            guide.text = preview ? $"{ColorNames[supply]} 해금 · 표시 칸 준비"
+                : $"{ColorNames[supply]} {TabletScene.AbilityName(supply)} · 표시된 3칸";
+        else if (unlocked > 0)
+            guide.text = $"{ColorNames[unlocked]} {TabletScene.AbilityName(unlocked)} 해금";
+        else if (next > 0)
+            guide.text = seconds == 0 ? $"보충 뒤 {ColorNames[next]} 해금"
+                : $"{seconds}초 후 {ColorNames[next]} {TabletScene.AbilityName(next)}";
+        else
+            guide.text = "상하좌우 같은 색 3칸";
+
+        pressure.color = pending > 0 || arrived || misses > 0 ? HitColor : SecondaryText;
+        pressure.text = pending > 0 ? $"증원 +{pending} · {misses}/3"
+            : arrived ? $"증원 도착 · {misses}/3" : $"실패 {misses}/3";
+    }
+
+    internal void ClearTabletGuidance()
+    {
+        if (pressure == null) return;
+        pressure.text = "";
+        guide.text = "상하좌우 같은 색 3칸";
+        lastGuide = default;
     }
 
     internal void StartMatch(int color, int count)
@@ -216,7 +290,11 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
             statusGlyph.preserveAspect = true;
         }
         detail = MakeText(panel, "Match detail", "", .05f, .19f, .95f, .34f, 36, SecondaryText, TextAnchor.MiddleLeft);
-        MakeText(panel, "Match rule", "상하좌우로 이어진 같은 색을 눌러요", .05f, .035f, .95f, .17f, 34, SecondaryText, TextAnchor.MiddleLeft);
+        guide = MakeText(panel, "Match rule", "상하좌우로 이어진 같은 색을 눌러요",
+            .05f, .035f, tablet != null ? .66f : .95f, .17f, 34, SecondaryText, TextAnchor.MiddleLeft);
+        if (tablet != null)
+            pressure = MakeText(panel, "Tablet miss status", "", .66f, .035f, .95f, .17f,
+                34, SecondaryText, TextAnchor.MiddleRight);
 
         const float left = .045f;
         const float slotWidth = .91f / 7f;

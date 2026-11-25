@@ -11,7 +11,7 @@ public class HBlocks
     public Block[] blocks;
 }
 
-public class Game : MonoBehaviour
+public partial class Game : MonoBehaviour
 {
     public static Game instance;
     public int MaxColorCount => tablet == null ? Grade + 3 : tabletPalette;
@@ -44,8 +44,6 @@ public class Game : MonoBehaviour
     bool previousClickMatched;
     TabletScene tablet;
     int tabletPalette;
-    bool seededTabletHealing;
-    bool seededTabletShield;
 
     void Awake()
     {
@@ -117,8 +115,11 @@ public class Game : MonoBehaviour
             SetTimer(tablet.Combat.Remaining);
             if (tablet.Combat.Result != TabletResult.Playing)
                 EndRound();
-            else if (!resolvingBoard)
-                SyncTabletPalette(true);
+            else
+            {
+                if (!resolvingBoard) SyncTabletPalette();
+                UpdateTabletBoardGuidance();
+            }
             return;
         }
 
@@ -140,6 +141,8 @@ public class Game : MonoBehaviour
             foreach (var column in blocks)
             foreach (var block in column.blocks)
                 block.Settle();
+            ClearTabletSupply();
+            matchFeedback.ClearTabletGuidance();
             matchFeedback.StopPulse();
             tablet.FinishFlight();
         }
@@ -171,8 +174,7 @@ public class Game : MonoBehaviour
         Score = 0;
         Grade = minGrade;
         tabletPalette = 3;
-        seededTabletHealing = false;
-        seededTabletShield = false;
+        if (tablet != null) ResetTabletBoardGuidance();
         tablet?.ResetRound();
         matchFeedback?.ResetRound(MaxColorCount);
         ShowScore?.Invoke(Score);
@@ -194,14 +196,20 @@ public class Game : MonoBehaviour
             previousClickMatched = false;
             if (group.Count > 0)
             {
-                matchFeedback?.ShowFailure(boardData[position.x, position.y], group.Count);
-                soundEffects?.PlayMiss();
+                if (tablet == null)
+                {
+                    matchFeedback?.ShowFailure(boardData[position.x, position.y], group.Count);
+                    soundEffects?.PlayMiss();
+                }
+                else if (HandleTabletMiss(position, group.Count))
+                    soundEffects?.PlayMiss();
             }
             return;
         }
 
         int color = boardData[position.x, position.y];
         int paletteAtClick = MaxColorCount;
+        if (tablet != null) ClearTabletSupply();
         matchFeedback?.StartMatch(color, group.Count);
         resolvingBoard = true;
         alphaScreen.SetActive(true);
@@ -215,7 +223,10 @@ public class Game : MonoBehaviour
         Score += MatchRules.GetScore(group.Count);
         ShowScore?.Invoke(Score);
         if (tablet != null)
+        {
             matchFeedback.ShowTabletResult(tablet.Match(color, group.Count), color);
+            UpdateTabletBoardGuidance();
+        }
         soundEffects?.PlayMatch(group.Count, chained);
         matchBurst?.Play(blocks, group, position, chained);
         foreach (var cell in group)
@@ -275,9 +286,7 @@ public class Game : MonoBehaviour
             block.ChangeSprite(nextColor);
         }
 
-        if (tablet != null)
-            SyncTabletPalette(false);
-        else
+        if (tablet == null)
         {
             int nextGrade = MatchRules.GetGrade(Score, minGrade, maxGrade);
             if (Grade != nextGrade)
@@ -305,8 +314,6 @@ public class Game : MonoBehaviour
         }
 
         yield return WaitForDrop();
-        if (tablet != null && roundActive)
-            SyncTabletPalette(true);
         if (roundActive && !MatchRules.HasMatch(boardData))
         {
             RollBoard();
@@ -324,45 +331,6 @@ public class Game : MonoBehaviour
             return count >= 6 && Random.value < .5f ? 6 : 4;
         int attack = Random.Range(1, count - (count >= 6 ? 2 : 1) + 1);
         return attack <= 3 ? attack : attack == 4 ? 5 : 7;
-    }
-
-    void SyncTabletPalette(bool guaranteeDefense)
-    {
-        int count = tablet.Combat.PaletteSize;
-        if (count != tabletPalette)
-        {
-            tabletPalette = count;
-            Grade = count - 3;
-            ShowGrade?.Invoke(Grade);
-            matchFeedback.SetPalette(count);
-        }
-        if (!guaranteeDefense) return;
-        int center = boardData.GetLength(1) / 2;
-        if (count >= 4 && !seededTabletHealing)
-        {
-            seededTabletHealing = true;
-            SeedTabletDefense(4, center, "초록 3칸으로 모함을 수리해요");
-        }
-        if (count >= 6 && !seededTabletShield)
-        {
-            seededTabletShield = true;
-            SeedTabletDefense(6, center + 1, "파랑 3칸으로 방어막을 켜요");
-        }
-    }
-
-    void SeedTabletDefense(int color, int row, string guidance)
-    {
-        for (int x = 0; x < boardData.GetLength(0); x++)
-        for (int y = 0; y < boardData.GetLength(1); y++)
-            if (boardData[x, y] == color && MatchRules.FindGroup(boardData, x, y).Count >= MatchRules.MinimumGroupSize)
-                return;
-
-        for (int x = 1; x <= 3; x++)
-        {
-            boardData[x, row] = color;
-            blocks[x].blocks[row].ChangeSprite(color);
-        }
-        matchFeedback.ShowTabletResult(guidance, color);
     }
 
     IEnumerator WaitForDrop()
@@ -383,6 +351,7 @@ public class Game : MonoBehaviour
 
     void FinishDrop()
     {
+        if (tablet != null && roundActive) SyncTabletPalette();
         resolvingBoard = false;
         alphaScreen.SetActive(!roundActive);
     }

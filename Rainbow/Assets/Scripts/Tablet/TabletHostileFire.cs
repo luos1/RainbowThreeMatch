@@ -100,9 +100,9 @@ internal sealed partial class TabletCombat
             }
         }
 
-        for (int i = 0; i < Plans.Length; i++)
+        for (int i = 0; i < planCount; i++)
         {
-            var plan = Plans[i];
+            var plan = roundPlans[i];
             ref var enemy = ref enemies[i];
             if (!IsTargetable(i) || enemy.Attacked || elapsed < FireAt(plan, enemy)) continue;
             bool boss = IsBoss(plan);

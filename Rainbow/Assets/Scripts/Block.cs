@@ -15,6 +15,7 @@ public class Block : MonoBehaviour
     Vector2Int position;
     Image tabletGlyph;
     Sprite[] tabletGlyphs;
+    Image supplyMark;
 
 
     private void Awake()
@@ -79,6 +80,20 @@ public class Block : MonoBehaviour
         tabletGlyph = TabletTileArt.AddGlyph(icon.rectTransform);
         icon.sprite = null;
         if (TryGetComponent<Image>(out var tileBacking)) tileBacking.color = TabletTileArt.Empty;
+    }
+
+    internal void MarkTabletSupply(int color)
+    {
+        if (supplyMark == null)
+        {
+            if (color == 0) return;
+            supplyMark = TabletTileArt.AddGlyph(icon.rectTransform);
+            supplyMark.name = "Supply preview";
+            supplyMark.rectTransform.anchorMin = new Vector2(.03f, .03f);
+            supplyMark.rectTransform.anchorMax = new Vector2(.97f, .97f);
+        }
+        supplyMark.enabled = color != 0;
+        supplyMark.color = color == 4 ? new Color(.63f, 1f, .70f, .36f) : new Color(.53f, .81f, 1f, .36f);
     }
 
     public bool CheckDropEnd() => !anim.IsDropping;
