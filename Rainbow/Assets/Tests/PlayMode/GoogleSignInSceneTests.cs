@@ -135,7 +135,68 @@ public class GoogleSignInSceneTests
         Assert.That(FindButton("Sign in with Google").interactable, Is.True);
     }
 
+    [UnityTest]
+    public IEnumerator GuestStartsAndLinksWithoutLosingTheUidOrScore()
+    {
+        var provider = new GoogleSignInDouble();
+        GoogleSignIn.Provider = provider;
+        yield return SceneManager.LoadSceneAsync("00.Loading");
+        yield return null;
+
+        Click(FindButton("게스트로 시작"));
+        yield return WaitForScene("01.Lobby");
+        var guest = AccountSession.Auth.CurrentUser;
+        Assert.That(guest.IsAnonymous, Is.True);
+        yield return WaitForTask(AccountSession.Progress.RecordScore(guest.Uid, 550));
+
+        Click(FindButton("Google 계정 연결"));
+        provider.Complete(SignInOutcome.Success, "unclaimed-token");
+        yield return null;
+
+        Assert.That(AccountSession.Auth.CurrentUser.IsAnonymous, Is.False);
+        Assert.That(AccountSession.Auth.CurrentUser.Uid, Is.EqualTo(guest.Uid));
+        Assert.That(AccountSession.Progress.LoadLocal(guest.Uid).Result.HighScore, Is.EqualTo(550));
+        Assert.That(FindButton("Google 계정 연결"), Is.Null);
+    }
+
+    [UnityTest]
+    public IEnumerator ClaimedCredentialKeepsTheGuestUntilThePlayerChoosesToMerge()
+    {
+        var provider = new GoogleSignInDouble();
+        GoogleSignIn.Provider = provider;
+        yield return SceneManager.LoadSceneAsync("00.Loading");
+        yield return null;
+
+        Click(FindButton("게스트로 시작"));
+        yield return WaitForScene("01.Lobby");
+        var guest = AccountSession.Auth.CurrentUser;
+        yield return WaitForTask(AccountSession.Progress.RecordScore(guest.Uid, 550));
+
+        Click(FindButton("Google 계정 연결"));
+        provider.Complete(SignInOutcome.Success, "test-token");
+        yield return null;
+        Assert.That(AccountSession.Auth.CurrentUser, Is.EqualTo(guest));
+        Assert.That(GameObject.Find("Account status").GetComponent<Text>().text, Does.Contain("이미 연결된"));
+
+        Click(FindButton("기존 Google 계정에 합치기"));
+        provider.Complete(SignInOutcome.Success, "test-token");
+        yield return null;
+        Assert.That(AccountSession.Auth.CurrentUser.Uid, Is.EqualTo("test-account"));
+        Assert.That(AccountSession.Progress.LoadLocal("test-account").Result.HighScore, Is.EqualTo(550));
+        Assert.That(AccountSession.Progress.LoadLocal(guest.Uid).Result.HighScore, Is.EqualTo(550));
+        Assert.That(FindButton("기존 Google 계정에 합치기"), Is.Null);
+    }
+
     private static string Status => GameObject.Find("Sign-in status").GetComponent<Text>().text;
+
+    private static IEnumerator WaitForTask(System.Threading.Tasks.Task task)
+    {
+        double deadline = Time.realtimeSinceStartupAsDouble + 5;
+        while (!task.IsCompleted && Time.realtimeSinceStartupAsDouble < deadline)
+            yield return null;
+        Assert.That(task.IsCompleted, Is.True);
+        task.GetAwaiter().GetResult();
+    }
 
     private static Button FindButton(string name) => Object.FindObjectsOfType<Button>()
         .SingleOrDefault(button => button.name == name);

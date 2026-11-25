@@ -1,5 +1,9 @@
 # RainbowThreeMatch AI handoff
 
+For the Firebase draft stack, use [Firebase Spark setup](firebase-setup.md).
+The handoff below records the earlier UniversalSDK implementation and its
+verification. Firebase now supplies the app session and private score store.
+
 RainbowThreeMatch uses Google sign-in before entering the game. The project owner has decided that the infrastructure must be **new and dedicated to RainbowThreeMatch**. Another AI or team will create it. This handoff covers the Unity changes, what was executed, and what the infrastructure owner needs to supply. Google is the selected identity provider. The first release platform, final application identifiers, cloud and storage provider, and score policy remain open.
 
 ## Repository and branch order
@@ -53,7 +57,7 @@ The implementation commit passed import and compilation with exit 0. Play Mode r
 | Area | Current behavior and where to extend |
 | --- | --- |
 | Login and scenes | [Login.cs](../Rainbow/Assets/Scripts/Login.cs) handles status, duplicate clicks, cancellation, timeout and failures. [Loading.cs](../Rainbow/Assets/Scripts/UI/Loading.cs) moves `00.Loading` to `01.Lobby` after sign-in. [Lobby.cs](../Rainbow/Assets/Scripts/UI/Lobby.cs) requires a local session and opens `02.Game`. Sign-out returns to sign-in. |
-| SDK response and session | [GoogleSignIn.cs](../Rainbow/Assets/Scripts/GoogleSignIn.cs) calls UniversalSDK for Android/iOS. `Complete` checks that the provider supplied both a user ID and an ID token, then sends the ID to the local login flow. [UserData.cs](../Rainbow/Assets/Scripts/UserData.cs) holds only the account ID in memory. A new app process starts signed out. The ID token is discarded. There is no backend session, restored credential, guest route, or durable score API. |
+| SDK response and session | [GoogleSignIn.cs](../Rainbow/Assets/Scripts/GoogleSignIn.cs) calls UniversalSDK for Android/iOS. `Complete` checks that the provider supplied both a user ID and an ID token. At this handoff the ID fed the in-memory `UserData` session and the ID token was discarded. The Firebase flow now exchanges the token through [FirebaseAuthService](../Rainbow/Assets/Scripts/Services/FirebaseAuthService.cs). |
 | Future score submission | [Game.cs](../Rainbow/Assets/Scripts/Game.cs) owns `Score`. `Update` marks the round complete when the timer expires. To add persistence, capture the final score there before `OnClickRetry()` resets it. Bind submission and any retry queue to the authenticated account used when the round started. Keep networking outside board and scoring rules. |
 | Mobile build config | Android uses [launcherTemplate.gradle](../Rainbow/Assets/Plugins/Android/launcherTemplate.gradle). iOS uses [PlistUpdating.cs](../Rainbow/Assets/UniversalSDK/Editor/PlistUpdating.cs). See the platform workflow below and the [detailed SDK setup](google-sign-in.md). |
 

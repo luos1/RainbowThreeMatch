@@ -1,5 +1,9 @@
 # Google sign-in and account setup
 
+For the Firebase-backed app, follow [Firebase Spark setup](firebase-setup.md).
+The original integration and HTTPS alternative below provide background on
+UniversalSDK and the previous in-memory flow.
+
 Rainbow starts in `00.Loading`. Successful Google sign-in opens `01.Lobby`, where Play opens `02.Game`. The lobby returns to sign-in if the app has no session. Sign out clears the Rainbow session and asks the platform SDK to sign out. A cold start requires sign-in again. The game stores the SDK's account identifier in process memory and discards the token after checking that the native SDK returned one. This session gates the local UI. A future server must authenticate requests independently.
 
 ## Google OAuth test environment
@@ -11,7 +15,7 @@ Rainbow starts in `00.Loading`. Successful Google sign-in opens `01.Lobby`, wher
 
 The client IDs are public app identifiers. Keep OAuth client secrets, signing keys, and service credentials in the selected platform's credential store. No client secret is needed by these Unity build settings. OAuth configuration and mobile signing assets are provided separately from the repository.
 
-Android's current Maven integration uses UniversalSDK `3.0.5` and its legacy Google Sign-In dependency. The unused resolver XML lists `3.0.7`. Device QA must check the resolved Gradle dependency graph. Google's supported direction for Android is Credential Manager. If Android is the distribution target, assess a migration before release and confirm the native bridge and dependencies first. For a planned App Store release, review Apple's login-service requirements and exceptions before choosing the final login options. [Android Credential Manager](https://developer.android.com/identity/sign-in/credential-manager-siwg) · [Apple App Review Guideline 4.8](https://developer.apple.com/app-store/review/guidelines/#login-services)
+Android's Maven integration and resolver XML use UniversalSDK `3.0.5` and its legacy Google Sign-In dependency. Device QA must check the resolved Gradle dependency graph. Google's supported direction for Android is Credential Manager. If Android is the distribution target, assess a migration before release and confirm the native bridge and dependencies first. For a planned App Store release, review Apple's login-service requirements and exceptions before choosing the final login options. [Android Credential Manager](https://developer.android.com/identity/sign-in/credential-manager-siwg) · [Apple App Review Guideline 4.8](https://developer.apple.com/app-store/review/guidelines/#login-services)
 
 ## Account-scoped high scores
 

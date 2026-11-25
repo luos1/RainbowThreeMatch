@@ -112,8 +112,9 @@ dependencies.
 Repository policy excludes `google-services.json` and `GoogleService-Info.plist`.
 Obtain them locally from the owner and never commit them. Firebase's Unity
 Google guide requires the Web client ID as the ID-token `aud` on **both** Android
-and iOS. Existing UniversalSDK iOS setup uses an iOS client ID, so inspect a
-real signed-device token before enabling Firebase exchange there. If its `aud`
+and iOS. The Xcode exporter sets `GIDServerClientID` from the configured Web
+client ID alongside the iOS client and its callback scheme. Confirm the
+bundled UniversalSDK honors the Web audience in a signed device test. If its `aud`
 is not the Firebase Web client ID, update the native configuration or migrate
 the bridge; do not weaken audience validation.
 

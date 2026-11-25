@@ -141,7 +141,8 @@ public class TabletSceneTests
             Assert.That(source.clip.name, Is.EqualTo("error_006"));
             Assert.That(combat.FailureStreak + combat.ReinforcementsPending, Is.Zero);
 
-            yield return new WaitForEndOfFrame();
+            yield return null;
+            Canvas.ForceUpdateCanvases();
             Assert.That(Primary().GetComponentInChildren<Text>().text, Is.EqualTo("정비하기"));
             Assert.That(Tap(Primary()), Is.True, lastRaycast);
             var retry = Primary();
@@ -222,7 +223,8 @@ public class TabletSceneTests
         Assert.That(game.CanPlay, Is.False);
         Assert.That(Tap(Primary()), Is.True, lastRaycast);
         Assert.That(tablet.Phase, Is.EqualTo(TabletPhase.Hangar));
-        yield return new WaitForEndOfFrame();
+        yield return null;
+        Canvas.ForceUpdateCanvases();
         var attack = GameObject.Find("Upgrade Attack").GetComponent<Button>();
         var hull = GameObject.Find("Upgrade Hull").GetComponent<Button>();
         Assert.That(Tap(attack), Is.True, lastRaycast);
@@ -287,7 +289,8 @@ public class TabletSceneTests
         Assert.That(Tap(game.blocks[0].blocks[0].GetComponent<Button>()), Is.True);
         combat.Advance(.35);
         yield return null;
-        yield return new WaitForEndOfFrame();
+        yield return null;
+        Canvas.ForceUpdateCanvases();
         Assert.That(game.CanPlay, Is.False);
         Assert.That(game.MaxColorCount, Is.EqualTo(3), "The new color must wait until the current refill settles.");
         yield return WaitUntil(() => game.CanPlay);
@@ -429,7 +432,8 @@ public class TabletSceneTests
             SceneManager.sceneLoaded -= Bind;
         }
         yield return WaitUntil(() => GameObject.Find("Tablet Sortie") != null);
-        yield return new WaitForEndOfFrame();
+        yield return null;
+        Canvas.ForceUpdateCanvases();
     }
 
     IEnumerator OpenTablet()
