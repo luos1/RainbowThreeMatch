@@ -11,6 +11,29 @@ using Random = UnityEngine.Random;
 public class GameSceneTests
 {
     [UnityTest]
+    public IEnumerator InitialBoardAndHudFitWithinGameViewport()
+    {
+        yield return SceneManager.LoadSceneAsync("02.Game");
+        var game = Game.instance;
+        Assert.That(game, Is.Not.Null);
+        yield return WaitFor(() => game.CanPlay, "initial drop");
+        Canvas.ForceUpdateCanvases();
+
+        var canvas = game.GetComponentInParent<Canvas>();
+        Assert.That(canvas, Is.Not.Null);
+        var corners = new Vector3[4];
+        foreach (var column in game.blocks)
+        foreach (var block in column.blocks)
+        {
+            AssertInsideViewport((RectTransform)block.transform, canvas, corners);
+        }
+
+        AssertInsideViewport((RectTransform)Object.FindObjectOfType<ScoreText>().transform, canvas, corners);
+        AssertInsideViewport((RectTransform)Object.FindObjectOfType<GradeText>().transform, canvas, corners);
+        AssertInsideViewport((RectTransform)Object.FindObjectOfType<TimerText>().transform, canvas, corners);
+    }
+
+    [UnityTest]
     public IEnumerator MatchRefillsAndRetryRestartsTheTimedRound()
     {
         var randomState = Random.state;
@@ -76,6 +99,18 @@ public class GameSceneTests
             yield return null;
         }
         Assert.That(condition(), Is.True, phase);
+    }
+
+    static void AssertInsideViewport(RectTransform rect, Canvas canvas, Vector3[] corners)
+    {
+        rect.GetWorldCorners(corners);
+        var bounds = canvas.pixelRect;
+        foreach (var corner in corners)
+        {
+            var point = RectTransformUtility.WorldToScreenPoint(canvas.worldCamera, corner);
+            Assert.That(point.x, Is.InRange(bounds.xMin - 1f, bounds.xMax + 1f), rect.name + " horizontal visibility");
+            Assert.That(point.y, Is.InRange(bounds.yMin - 1f, bounds.yMax + 1f), rect.name + " vertical visibility");
+        }
     }
 
     static int[,] ReadBoard(Game game)
