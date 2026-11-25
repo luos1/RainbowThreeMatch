@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
+using Rainbow.Services;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -43,6 +44,10 @@ public class GameSceneTests
         float timeScale = Time.timeScale;
         try
         {
+            var auth = new FakeAuthService();
+            var save = new InMemoryCloudSaveService();
+            AccountSession.SetServices(auth, new InMemoryCloudSaveService(), save);
+            var owner = auth.SignInAnonymously().GetAwaiter().GetResult();
             Random.InitState(1574);
             Time.timeScale = 1f;
             yield return SceneManager.LoadSceneAsync("02.Game");
@@ -71,6 +76,7 @@ public class GameSceneTests
             Assert.That(game.CanPlay, Is.False);
             button.onClick.Invoke();
             Assert.That(game.Score, Is.EqualTo(expectedScore));
+            Assert.That(save.Load(owner.Uid).GetAwaiter().GetResult()?.HighScore, Is.EqualTo(expectedScore));
 
             var retry = Array.Find(Object.FindObjectsOfType<Button>(true), candidate =>
                 candidate.onClick.GetPersistentEventCount() > 0 &&
@@ -90,6 +96,7 @@ public class GameSceneTests
         }
         finally
         {
+            AccountSession.Reset();
             Time.timeScale = timeScale;
             Random.state = randomState;
         }

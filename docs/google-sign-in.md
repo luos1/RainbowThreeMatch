@@ -1,5 +1,9 @@
 # Google sign-in and account setup
 
+For the Firebase-backed app, follow [Firebase Spark setup](firebase-setup.md).
+The original integration and HTTPS alternative below provide background on
+UniversalSDK and the previous in-memory flow.
+
 Rainbow starts in `00.Loading`. Successful Google sign-in opens `01.Lobby`, where Play opens `02.Game`. The lobby returns to sign-in if the app has no session. Sign out clears the Rainbow session and asks the platform SDK to sign out. A cold start requires sign-in again. The game stores the SDK's account identifier in process memory and discards the token after checking that the native SDK returned one. This session gates the local UI. A future server must authenticate requests independently.
 
 ## Google OAuth test environment
