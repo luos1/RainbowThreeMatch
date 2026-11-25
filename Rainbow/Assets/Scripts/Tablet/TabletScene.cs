@@ -140,7 +140,7 @@ public sealed class TabletScene : MonoBehaviour
     internal string Match(int color, int count)
     {
         int before = Combat.Hp;
-        Combat.ApplyMatch(color, count);
+        bool focused = Combat.ApplyMatch(color, count);
         view.Render(Combat);
         if (color == 4)
             return Combat.Hp == before
@@ -148,6 +148,8 @@ public sealed class TabletScene : MonoBehaviour
                 : $"초록 {count}개 · 체력 +{Combat.Hp - before}";
         if (color == 6)
             return $"파랑 {count}개 · 쉴드 {Combat.Shield:0.##}초";
+        if (focused)
+            return $"{AbilityNames[color]} · 집중 포격 {count}발";
         return $"{ColorNames[color]} {count}개 · {AbilityNames[color]} {count}발";
     }
 

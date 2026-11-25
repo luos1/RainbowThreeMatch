@@ -75,6 +75,39 @@ public class TabletSceneTests
     }
 
     [UnityTest]
+    public IEnumerator PuzzleStreakShowsFocusFireAndAMissRestartsTheStreak()
+    {
+        yield return OpenTablet();
+        var game = Game.instance;
+        var combat = game.GetComponent<TabletScene>().Combat;
+        var status = GameObject.Find("Match status").GetComponent<Text>();
+        for (int match = 1; match <= 3; match++)
+        {
+            Fill(game, 1, 3);
+            Assert.That(Tap(game.blocks[0].blocks[0].GetComponent<Button>()), Is.True, lastRaycast);
+            Assert.That(combat.OfferedShots, Is.EqualTo(3 * match));
+            Assert.That(status.text.Contains("집중 포격"), Is.EqualTo(match == 3));
+            yield return WaitUntil(() => game.CanPlay);
+        }
+
+        AddLegalMatchAwayFromTheTestedPair(game);
+        Assert.That(Tap(game.blocks[0].blocks[0].GetComponent<Button>()), Is.True, lastRaycast);
+        Assert.That(combat.FailureStreak, Is.EqualTo(1));
+        yield return null;
+
+        Fill(game, 1, 3);
+        Assert.That(Tap(game.blocks[0].blocks[0].GetComponent<Button>()), Is.True, lastRaycast);
+        Assert.That(combat.OfferedShots, Is.EqualTo(12));
+        Assert.That(status.text, Does.Not.Contain("집중 포격"));
+        yield return WaitUntil(() => game.CanPlay);
+
+        Fill(game, 3, 6);
+        Assert.That(Tap(game.blocks[0].blocks[0].GetComponent<Button>()), Is.True, lastRaycast);
+        Assert.That(combat.OfferedShots, Is.EqualTo(18));
+        Assert.That(status.text, Does.Contain("집중 포격 6발"));
+    }
+
+    [UnityTest]
     public IEnumerator GreenAppearsAtFourSecondsAndBlueClickAppliesRealShield()
     {
         yield return OpenTablet();

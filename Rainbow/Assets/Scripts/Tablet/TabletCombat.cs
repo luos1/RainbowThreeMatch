@@ -25,6 +25,9 @@ internal sealed partial class TabletCombat
     const float HitRadius = .065f;
     const double Frame = 1.0 / 60;
     const double ShotInterval = 1.0 / 12;
+    const int FocusMatchSize = 6;
+    const int FocusMatchStreak = 3;
+    const float FocusHitMultiplier = 1.5f;
 
     // Flights enter from alternating sides. The attack clock opens a firing window, and
     // a ship at a visible firing position launches an actual projectile.
@@ -52,6 +55,7 @@ internal sealed partial class TabletCombat
     double elapsed, nextShot, aimUntil, invulnerableUntil;
     int target = -1;
     int nextEffect;
+    int successfulMatches;
     float attackPower;
 
     internal float Elapsed => (float)elapsed;
@@ -147,28 +151,33 @@ internal sealed partial class TabletCombat
         }
         PendingShots = ActiveShots = 0;
         FailureStreak = ReinforcementsPending = 0;
+        BreakMatchStreak();
         Shield = 0;
         target = -1;
     }
 
-    internal void ApplyMatch(int color, int tileCount)
+    internal void BreakMatchStreak() => successfulMatches = 0;
+
+    internal bool ApplyMatch(int color, int tileCount)
     {
         if (Result != TabletResult.Playing || color < 1 || color > PaletteSize || tileCount < MatchRules.MinimumGroupSize)
-            return;
+            return false;
         FailureStreak = 0;
+        successfulMatches = Math.Min(successfulMatches + 1, FocusMatchStreak);
         switch (color)
         {
             case 4:
                 Hp = Math.Min(Hull, Hp + tileCount);
-                break;
+                return false;
             case 6:
                 Shield = Math.Min(MaxShield, Shield + .75f * tileCount);
-                break;
+                return false;
             default:
-                queue.Enqueue(new Volley(color, tileCount));
+                bool focused = tileCount >= FocusMatchSize || successfulMatches == FocusMatchStreak;
+                queue.Enqueue(new Volley(color, tileCount, focused));
                 PendingShots += tileCount;
                 OfferedShots += tileCount;
-                break;
+                return focused;
         }
     }
 
@@ -303,10 +312,10 @@ internal sealed partial class TabletCombat
         float flight = Vector2.Distance(enemies[target].Position, origin) / ShotSpeed;
         var direction = (PositionAt(plan, target, Elapsed - plan.Spawn + flight * AimLead) - origin).normalized;
         if (volley.Color == 3)
-            direction = Rotate(direction, SpreadAngle(volley.Fired, volley.Count));
+            direction = Rotate(direction, SpreadAngle(volley.Fired, volley.Count, volley.Focused));
         shots[index] = new Shot
         {
-            Active = true, Color = volley.Color, Target = target, Position = origin,
+            Active = true, Focused = volley.Focused, Color = volley.Color, Target = target, Position = origin,
             Direction = direction, Lifetime = 1.25f
         };
         nextShot = elapsed + ShotInterval;
@@ -319,7 +328,11 @@ internal sealed partial class TabletCombat
             queue.Dequeue();
     }
 
-    internal static float SpreadAngle(int index, int count) => count > 1 ? Mathf.Lerp(-11, 11, index / (count - 1f)) : 0;
+    internal static float SpreadAngle(int index, int count, bool focused = false)
+    {
+        float halfAngle = focused ? 3f : 11f;
+        return count > 1 ? Mathf.Lerp(-halfAngle, halfAngle, index / (count - 1f)) : 0;
+    }
 
     internal static float HitPower(int color, int contact) =>
         color == 5 ? .8f : color == 2 && contact > 0 ? .5f : color == 7 && contact > 0 ? .35f : 1f;
@@ -346,7 +359,9 @@ internal sealed partial class TabletCombat
             {
                 if (shot.Contacts == 0) HitShots++;
                 shot.HitMask |= 1UL << hit;
-                HurtEnemy(hit, HitPower(shot.Color, shot.Contacts), shot.Color, shot.Direction);
+                float damage = HitPower(shot.Color, shot.Contacts);
+                if (shot.Focused) damage *= FocusHitMultiplier;
+                HurtEnemy(hit, damage, shot.Color, shot.Direction);
                 shot.Contacts++;
                 if (shot.Color == 7)
                     Blast(hit);
@@ -470,7 +485,7 @@ internal sealed partial class TabletCombat
 
     internal struct Shot
     {
-        internal bool Active;
+        internal bool Active, Focused;
         internal int Color, Target, Contacts;
         internal ulong HitMask;
         internal float Lifetime;
@@ -488,8 +503,15 @@ internal sealed partial class TabletCombat
     sealed class Volley
     {
         internal readonly int Color, Count;
+        internal readonly bool Focused;
         internal int Fired;
-        internal Volley(int color, int count) { Color = color; Count = count; }
+
+        internal Volley(int color, int count, bool focused)
+        {
+            Color = color;
+            Count = count;
+            Focused = focused;
+        }
     }
 
     readonly struct EnemyPlan
