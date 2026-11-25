@@ -105,6 +105,7 @@ public class TabletSceneTests
 
             yield return new WaitForEndOfFrame();
             var retry = GameObject.Find("Tablet Retry").GetComponent<Button>();
+            Assert.That(retry.GetComponentInChildren<Text>().text, Is.EqualTo("다시 하기"));
             Assert.That(Tap(retry), Is.True, lastRaycast);
             Assert.That(source.clip.name, Is.EqualTo("click_001"));
             yield return WaitUntil(() => game.CanPlay);

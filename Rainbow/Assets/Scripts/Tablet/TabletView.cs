@@ -82,6 +82,7 @@ internal sealed class TabletView
         button.targetGraphic = buttonGraphic;
         button.onClick.AddListener(() => retry());
         var buttonText = Label(button.transform, "Retry label", 0, 0, 1, 1, 44, new Color32(12, 34, 49, 255));
+        buttonText.text = "다시 하기";
         buttonText.alignment = TextAnchor.MiddleCenter;
         result.gameObject.SetActive(false);
         FitSafeArea();
