@@ -34,11 +34,11 @@ internal sealed partial class TabletCombat
         for (int batch = 0; batch + 1 < ReinforcementBatches.Length; batch++)
         {
             int first = ReinforcementBatches[batch];
-            if (Plans[first].Spawn <= elapsed) continue;
+            if (roundPlans[first].Spawn <= elapsed) continue;
             int last = ReinforcementBatches[batch + 1];
             for (int i = first; i < last; i++)
             {
-                var plan = Plans[i];
+                var plan = roundPlans[i];
                 AddReinforcement(new EnemyPlan(plan.Spawn + .11f, plan.Attack + .36f,
                     1 - plan.Lane, plan.Hp, plan.Style, plan.Flight, plan.Dives, true));
             }

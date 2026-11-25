@@ -202,7 +202,7 @@ public class TabletSceneTests
         Assert.That(GameObject.Find("Reward notice").GetComponent<Text>().text, Does.Contain("+20"));
 
         combat.ApplyMatch(1, 45);
-        while (combat.Elapsed < 45 && combat.Result == TabletResult.Playing)
+        while (!combat.BossApproaching && combat.Result == TabletResult.Playing)
         {
             combat.ApplyMatch(4, 5);
             combat.Advance(.2);
@@ -247,6 +247,46 @@ public class TabletSceneTests
         yield return OpenPreparation(key);
         Assert.That(Game.instance.GetComponent<TabletScene>().Combat.Hull, Is.EqualTo(11));
         Assert.That(new TabletProgress(key).Balance, Is.EqualTo(105));
+    }
+
+    [UnityTest]
+    public IEnumerator BossPhaseCueSeparatesWarningCounterAndMaintenanceUntilTheSortieEnds()
+    {
+        yield return OpenTablet();
+        var combat = Game.instance.GetComponent<TabletScene>().Combat;
+        while (combat.Elapsed < 46.9f && combat.Result == TabletResult.Playing)
+        {
+            combat.ApplyMatch(4, 5);
+            combat.ApplyMatch(6, 5);
+            combat.Advance(.25);
+        }
+        yield return null;
+
+        Assert.That(combat.Result, Is.EqualTo(TabletResult.Playing));
+        var phase = GameObject.Find("Boss phase").GetComponent<Text>();
+        Assert.That(phase.text, Does.Contain("공격 예고"));
+        Color warningColor = phase.color;
+
+        combat.Advance(47.8f - combat.Elapsed);
+        yield return null;
+        Assert.That(phase.text, Does.Contain("반격 기회"));
+        Color counterColor = phase.color;
+        Assert.That(counterColor, Is.Not.EqualTo(warningColor));
+
+        combat.Advance(49.6f - combat.Elapsed);
+        yield return null;
+        Assert.That(phase.text, Does.Contain("정비 시간"));
+        Assert.That(phase.color, Is.Not.EqualTo(counterColor));
+        Assert.That(phase.color, Is.Not.EqualTo(warningColor));
+
+        while (combat.Result == TabletResult.Playing)
+        {
+            combat.ApplyMatch(4, 5);
+            combat.ApplyMatch(6, 5);
+            combat.Advance(.25);
+        }
+        yield return null;
+        Assert.That(GameObject.Find("Boss phase"), Is.Null);
     }
 
     [UnityTest]

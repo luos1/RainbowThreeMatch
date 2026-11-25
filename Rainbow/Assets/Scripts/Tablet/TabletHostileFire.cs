@@ -29,7 +29,8 @@ internal sealed partial class TabletCombat
     internal float ShieldFlash { get; private set; }
     internal Vector2 ContactPosition { get; private set; }
 
-    static float FireAt(EnemyPlan plan, Enemy enemy) => plan.Attack + enemy.Volleys * BossSalvoInterval;
+    double FireAt(EnemyPlan plan, Enemy enemy) => IsBoss(plan) && enemy.Volleys > 0
+        ? bossFiredAt + BossSalvoInterval : plan.Attack;
 
     static bool IsBoss(EnemyPlan plan) => plan.Flight == BossFlight;
 
@@ -118,6 +119,7 @@ internal sealed partial class TabletCombat
                 float center = enemy.Volleys % 2 == 0 ? -9 : 9;
                 for (int shell = -1; shell <= 1; shell++)
                     LaunchHostile(origin, Rotate(direction, center + shell * 18), true);
+                RecordBossSalvo();
             }
             else
             {

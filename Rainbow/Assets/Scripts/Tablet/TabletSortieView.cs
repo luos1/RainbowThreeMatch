@@ -7,7 +7,7 @@ internal sealed partial class TabletView
     internal const float BossBurstTime = .57f;
     static readonly Color RewardGold = new Color32(255, 210, 121, 255);
     RectTransform sortiePanel, card, bossPanel, rewardPanel, upgradeCards;
-    Text cardTitle, cardDetail, primaryText, attackText, hullText, bossText, rewardText;
+    Text cardTitle, cardDetail, primaryText, attackText, hullText, bossText, bossPhaseText, rewardText;
     Button primaryButton, attackButton, hullButton;
     Image bossFill, bossBurst;
     Action primaryAction;
@@ -16,7 +16,9 @@ internal sealed partial class TabletView
     void BuildSortieFlow(Action attack, Action hull)
     {
         bossPanel = Graphic(arena, "Boss status", .07f, .925f, .93f, .986f, Hull).rectTransform;
-        bossText = Label(bossPanel, "Boss title", .05f, .24f, .95f, 1, 34, RewardGold);
+        bossText = Label(bossPanel, "Boss title", .05f, .24f, .46f, 1, 34, RewardGold);
+        bossPhaseText = Label(bossPanel, "Boss phase", .47f, .24f, .95f, 1, 34, Secondary);
+        bossPhaseText.alignment = TextAnchor.MiddleRight;
         var health = Graphic(bossPanel, "Boss health", .05f, .08f, .95f, .25f, Border).rectTransform;
         bossFill = Graphic(health, "Boss health fill", 0, 0, 1, 1, EnemyHealth);
         bossBurst = Entity("Boss defeat burst", explosions[0]);
@@ -132,16 +134,24 @@ internal sealed partial class TabletView
     void RenderSortieEffects(TabletCombat combat, float unit)
     {
         var boss = combat.Boss;
-        bool warning = combat.BossApproaching;
-        bool active = boss.Spawned && boss.Hp > 0 && combat.Result == TabletResult.Playing;
-        bool shown = warning || active;
+        var phase = combat.BossPhase;
+        bool shown = phase != TabletBossPhase.None;
         if (bossPanel.gameObject.activeSelf != shown)
             bossPanel.gameObject.SetActive(shown);
         if (shown)
         {
-            string title = active ? $"최종 보스   {boss.Hp:0.#}/{boss.MaxHp:0}" : "최종 보스 접근";
+            string title = phase == TabletBossPhase.Approaching ? "최종 보스 접근" : $"최종 보스 {boss.Hp:0.#}/{boss.MaxHp:0}";
             if (bossText.text != title) bossText.text = title;
-            Fill(bossFill, active ? boss.Hp / boss.MaxHp : 0);
+            var (message, color) = phase switch
+            {
+                TabletBossPhase.Warning => ("공격 예고", EnemyHealth),
+                TabletBossPhase.Counterattack => ("반격 기회 · 피해 ×1.5", Accent),
+                TabletBossPhase.Recovery => ("정비 시간 · 체력 회복", Secondary),
+                _ => ("", Secondary)
+            };
+            if (bossPhaseText.text != message) bossPhaseText.text = message;
+            bossPhaseText.color = color;
+            Fill(bossFill, boss.Spawned ? boss.Hp / boss.MaxHp : 0);
         }
 
         float now = Time.unscaledTime;
