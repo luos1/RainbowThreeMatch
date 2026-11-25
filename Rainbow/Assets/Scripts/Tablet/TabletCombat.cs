@@ -10,11 +10,13 @@ internal sealed class TabletCombat
     internal const int Duration = 60;
     internal const int ShotCapacity = 48;
     internal const int EffectCapacity = 10;
+    internal const int BossFlight = 4;
     internal const float MaxShield = 6;
     internal const float ImpactTime = .09f;
     const float EntryTime = .66f;
     const float DiveTime = .92f;
     const float DivePeriod = 5.35f;
+    const float BossWarningTime = 1.65f;
     const float AimLead = .50f;
     const float AimRefresh = .14f;
     const float PlayerSteerSpeed = .88f;
@@ -33,7 +35,7 @@ internal sealed class TabletCombat
         new EnemyPlan(18, 23, .31f, 3, 1, 1, 2, true), new EnemyPlan(18.24f, 28, .66f, 3, 1, 1, 2),
         new EnemyPlan(18.48f, 33, .51f, 3, 2, 1, 2, true),
         new EnemyPlan(38, 43, .26f, 3, 2, 0, 3, true), new EnemyPlan(38.24f, 47, .74f, 3, 2, 0, 3),
-        new EnemyPlan(38.48f, 51, .56f, 3, 2, 0, 3, true), new EnemyPlan(46.25f, 57, .49f, 6, 2, 2, 4, true)
+        new EnemyPlan(38.48f, 51, .56f, 3, 2, 0, 3, true), new EnemyPlan(46.25f, 57, .49f, 6, 2, 2, BossFlight, true)
     };
 
     readonly Queue<Volley> queue = new Queue<Volley>();
@@ -43,10 +45,13 @@ internal sealed class TabletCombat
     double elapsed, nextShot, aimUntil, invulnerableUntil;
     int target = -1;
     int nextEffect;
+    float attackPower;
 
     internal float Elapsed => (float)elapsed;
     internal float Remaining => Duration - Elapsed;
     internal int Hp { get; private set; }
+    internal int Hull { get; private set; }
+    internal int AwardedFlights { get; private set; }
     internal float Shield { get; private set; }
     internal int PaletteSize => Elapsed >= 42 ? 7 : Elapsed >= 30 ? 6 : Elapsed >= 18 ? 5 : Elapsed >= 4 ? 4 : 3;
     internal int Wave => Elapsed >= 38 ? 3 : Elapsed >= 18 ? 2 : 1;
@@ -54,6 +59,9 @@ internal sealed class TabletCombat
     internal Vector2 Player { get; private set; }
     internal IReadOnlyList<Shot> Shots => shots;
     internal IReadOnlyList<Enemy> Enemies => enemies;
+    internal Enemy Boss => enemies[enemies.Length - 1];
+    internal bool BossApproaching => Result == TabletResult.Playing && !Boss.Spawned
+        && Elapsed >= Plans[Plans.Length - 1].Spawn - BossWarningTime;
     internal IReadOnlyList<Effect> Effects => effects;
     internal int TargetIndex => target;
     internal int PendingShots { get; private set; }
@@ -90,11 +98,13 @@ internal sealed class TabletCombat
 
     internal TabletCombat() => Reset();
 
-    internal void Reset()
+    internal void Reset(int hull = MaxHp, float power = 1)
     {
         elapsed = nextShot = aimUntil = invulnerableUntil = 0;
         nextEffect = 0;
-        Hp = MaxHp;
+        Hp = Hull = hull;
+        attackPower = power;
+        AwardedFlights = 0;
         EnemiesDefeated = OfferedShots = FiredShots = HitShots = ExpiredShots = DroppedOnEnd = BlockedDamage = LastFiredColor = 0;
         TotalDamage = 0;
         Player = new Vector2(.5f, .12f);
@@ -125,7 +135,7 @@ internal sealed class TabletCombat
         switch (color)
         {
             case 4:
-                Hp = Math.Min(MaxHp, Hp + tileCount);
+                Hp = Math.Min(Hull, Hp + tileCount);
                 break;
             case 6:
                 Shield = Math.Min(MaxShield, Shield + .75f * tileCount);
@@ -394,15 +404,28 @@ internal sealed class TabletCombat
     void HurtEnemy(int index, float damage, int color, Vector2 direction)
     {
         ref var enemy = ref enemies[index];
-        float dealt = Mathf.Min(enemy.Hp, damage);
+        float dealt = Mathf.Min(enemy.Hp, damage * attackPower);
         TotalDamage += dealt;
         enemy.Hp -= dealt;
         enemy.HitTime = ImpactTime;
         enemy.HitColor = color;
         enemy.HitDirection = direction;
         bool destroyed = enemy.Hp <= 0;
-        if (destroyed) EnemiesDefeated++;
+        if (destroyed)
+        {
+            EnemiesDefeated++;
+            int flight = Plans[index].Flight;
+            if (FlightDefeated(flight)) AwardedFlights |= 1 << flight;
+        }
         Emit(enemy.Position, destroyed ? .13f : .076f, color, destroyed);
+    }
+
+    bool FlightDefeated(int flight)
+    {
+        for (int i = 0; i < Plans.Length; i++)
+            if (Plans[i].Flight == flight && (!enemies[i].Spawned || enemies[i].Hp > 0))
+                return false;
+        return true;
     }
 
     void Emit(Vector2 position, float size, int color, bool burst)

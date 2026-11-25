@@ -13,6 +13,32 @@ public class TabletSceneTests
 {
     const string Scene = "03.TabletPuzzleShooter";
     static readonly FieldInfo BoardField = typeof(Game).GetField("boardData", BindingFlags.Instance | BindingFlags.NonPublic);
+    static readonly FieldInfo ProfileField = typeof(TabletScene).GetField("progress", BindingFlags.Instance | BindingFlags.NonPublic);
+    readonly List<string> profileKeys = new List<string>();
+
+    [TearDown]
+    public void DeleteTestProfiles()
+    {
+        foreach (string key in profileKeys) PlayerPrefs.DeleteKey(key);
+        profileKeys.Clear();
+    }
+
+    [UnityTest]
+    public IEnumerator WaitsForAnExplicitSortieWithoutSpendingTheClock()
+    {
+        yield return OpenPreparation(NewProfileKey());
+        yield return new WaitForSeconds(.85f);
+        var game = Game.instance;
+        Assert.That(game.CanPlay, Is.False);
+        Assert.That(game.TimeSeconds, Is.EqualTo(60));
+        Assert.That(game.GetComponent<TabletScene>().Combat.Elapsed, Is.Zero);
+        var sortie = Primary();
+        Assert.That(Tap(sortie), Is.True, lastRaycast);
+        Assert.That(Tap(sortie), Is.False, "No active launch button during transition");
+        Assert.That(game.CanPlay, Is.False, "The launch transition keeps input locked");
+        yield return WaitUntil(() => game.CanPlay);
+        Assert.That(game.TimeSeconds, Is.EqualTo(60));
+    }
 
     [UnityTest]
     public IEnumerator GameplayClickQueuesExactShotsAndBlocksRepeatedInputDuringRefill()
@@ -104,8 +130,10 @@ public class TabletSceneTests
             Assert.That(source.clip.name, Is.EqualTo("error_006"));
 
             yield return new WaitForEndOfFrame();
-            var retry = GameObject.Find("Tablet Retry").GetComponent<Button>();
-            Assert.That(retry.GetComponentInChildren<Text>().text, Is.EqualTo("다시 하기"));
+            Assert.That(Primary().GetComponentInChildren<Text>().text, Is.EqualTo("정비하기"));
+            Assert.That(Tap(Primary()), Is.True, lastRaycast);
+            var retry = Primary();
+            Assert.That(retry.GetComponentInChildren<Text>().text, Is.EqualTo("다시 출격"));
             Assert.That(Tap(retry), Is.True, lastRaycast);
             Assert.That(source.clip.name, Is.EqualTo("click_001"));
             yield return WaitUntil(() => game.CanPlay);
@@ -123,6 +151,75 @@ public class TabletSceneTests
         Assert.That(Object.FindObjectsOfType<AudioSource>(), Has.Length.EqualTo(1));
     }
 
+    [UnityTest]
+    public IEnumerator AFlightPaysThroughSettlementAndHangarAndAppliesPurchasesOnTheNextSortie()
+    {
+        string key = NewProfileKey();
+        yield return OpenPreparation(key);
+        var game = Game.instance;
+        var tablet = game.GetComponent<TabletScene>();
+        var combat = tablet.Combat;
+        Assert.That(Tap(Primary()), Is.True, lastRaycast);
+        yield return WaitUntil(() => game.CanPlay);
+
+        Fill(game, 1, 5);
+        Assert.That(Tap(game.blocks[0].blocks[0].GetComponent<Button>()), Is.True);
+        Assert.That(combat.OfferedShots, Is.EqualTo(5));
+        combat.ApplyMatch(1, 45);
+        for (int i = 0; i < 30 && combat.EnemiesDefeated < 2; i++) combat.Advance(.08);
+        yield return null;
+        Assert.That(new TabletProgress(key).Balance, Is.EqualTo(20));
+        Assert.That(GameObject.Find("Reward notice").GetComponent<Text>().text, Does.Contain("+20"));
+
+        combat.ApplyMatch(1, 45);
+        while (combat.Elapsed < 45 && combat.Result == TabletResult.Playing)
+        {
+            combat.ApplyMatch(4, 5);
+            combat.Advance(.2);
+        }
+        yield return null;
+        Assert.That(GameObject.Find("Boss title").GetComponent<Text>().text, Does.Contain("접근"));
+        while (combat.Result == TabletResult.Playing)
+        {
+            combat.ApplyMatch(4, 5);
+            combat.Advance(.25);
+        }
+        yield return WaitUntil(() => tablet.Phase == TabletPhase.Settlement);
+        Assert.That(combat.Result, Is.EqualTo(TabletResult.Cleared));
+        Assert.That(new TabletProgress(key).Balance, Is.EqualTo(180));
+        Assert.That(GameObject.Find("Reward banner"), Is.Null);
+        Assert.That(GameObject.Find("Boss defeat burst"), Is.Null);
+        Assert.That(game.CanPlay, Is.False);
+        Assert.That(Tap(Primary()), Is.True, lastRaycast);
+        Assert.That(tablet.Phase, Is.EqualTo(TabletPhase.Hangar));
+        yield return new WaitForEndOfFrame();
+        var attack = GameObject.Find("Upgrade Attack").GetComponent<Button>();
+        var hull = GameObject.Find("Upgrade Hull").GetComponent<Button>();
+        Assert.That(Tap(attack), Is.True, lastRaycast);
+        Assert.That(Tap(attack), Is.True, lastRaycast);
+        Assert.That(new TabletProgress(key).Balance, Is.EqualTo(140));
+        yield return null;
+        Assert.That(attack.interactable, Is.False);
+        Assert.That(Tap(attack), Is.True, lastRaycast);
+        Assert.That(new TabletProgress(key).Balance, Is.EqualTo(140));
+        yield return WaitUntil(() => hull.interactable);
+        Assert.That(Tap(hull), Is.True, lastRaycast);
+        Assert.That(new TabletProgress(key).Balance, Is.EqualTo(105));
+        Assert.That(Tap(Primary()), Is.True, lastRaycast);
+        yield return WaitUntil(() => game.CanPlay);
+        Assert.That(combat.Hp, Is.EqualTo(11));
+        Assert.That(combat.AwardedFlights, Is.Zero);
+        Assert.That(game.TimeSeconds, Is.EqualTo(60));
+        combat.Advance(.90);
+        combat.ApplyMatch(1, 3);
+        for (int i = 0; i < 25 && combat.HitShots == 0; i++) combat.Advance(1.0 / 60);
+        Assert.That(combat.TotalDamage, Is.EqualTo(1.1f).Within(.001));
+
+        yield return OpenPreparation(key);
+        Assert.That(Game.instance.GetComponent<TabletScene>().Combat.Hull, Is.EqualTo(11));
+        Assert.That(new TabletProgress(key).Balance, Is.EqualTo(105));
+    }
+
     [Test]
     public void GeneratedAssetsImportAsCenteredSprites()
     {
@@ -137,11 +234,41 @@ public class TabletSceneTests
         }
     }
 
-    static IEnumerator OpenTablet()
+    string NewProfileKey()
     {
-        yield return SceneManager.LoadSceneAsync(Scene);
+        string key = "Rainbow.TabletScene.PlayMode." + System.Guid.NewGuid().ToString("N");
+        profileKeys.Add(key);
+        return key;
+    }
+
+    static IEnumerator OpenPreparation(string key)
+    {
+        void Bind(Scene loaded, LoadSceneMode mode)
+        {
+            if (loaded.name == Scene)
+                ProfileField.SetValue(Game.instance.GetComponent<TabletScene>(), new TabletProgress(key));
+        }
+        SceneManager.sceneLoaded += Bind;
+        try
+        {
+            yield return SceneManager.LoadSceneAsync(Scene);
+        }
+        finally
+        {
+            SceneManager.sceneLoaded -= Bind;
+        }
+        yield return WaitUntil(() => GameObject.Find("Tablet Sortie") != null);
+        yield return new WaitForEndOfFrame();
+    }
+
+    IEnumerator OpenTablet()
+    {
+        yield return OpenPreparation(NewProfileKey());
+        Assert.That(Tap(Primary()), Is.True, lastRaycast);
         yield return WaitUntil(() => Game.instance != null && Game.instance.CanPlay);
     }
+
+    static Button Primary() => GameObject.Find("Tablet Sortie").GetComponent<Button>();
 
     static IEnumerator WaitUntil(System.Func<bool> condition)
     {

@@ -1,23 +1,35 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+internal enum TabletPhase { Preparation, Launching, InFlight, Debrief, Settlement, Hangar }
+
 /// <summary>Opt-in combat adapter on the tablet scene's original puzzle panel.</summary>
 public sealed class TabletScene : MonoBehaviour
 {
     internal const float PuzzleWidth = .45f;
+    internal const float LaunchTime = .55f;
+    const float PurchaseLockTime = .25f;
     static readonly string[] ColorNames = { "", "빨강", "주황", "노랑", "초록", "하늘", "파랑", "보라" };
     static readonly string[] AbilityNames = { "", "직선탄", "관통탄", "확산탄", "", "유도탄", "", "폭발탄" };
     static readonly string[] AbilityAssets = { "", "straight", "piercing", "spread", "heal", "homing", "shield", "blast" };
 
     readonly Sprite[] icons = new Sprite[8];
     TabletView view;
+    TabletProgress progress;
+    Game puzzle;
+    int run, seenAwards;
+    float bossDebriefUntil, purchaseLockedUntil;
 #if !UNITY_EDITOR && (UNITY_IOS || UNITY_ANDROID)
     ScreenOrientation originalOrientation;
 #endif
     internal TabletCombat Combat { get; } = new TabletCombat();
+    internal TabletPhase Phase { get; private set; }
+    internal bool CanLaunch => Phase == TabletPhase.Preparation || Phase == TabletPhase.Hangar;
 
     internal void Setup(Game game, MatchFeedbackPanel feedback)
     {
+        puzzle = game;
+        if (progress == null) progress = new TabletProgress();
 #if !UNITY_EDITOR && (UNITY_IOS || UNITY_ANDROID)
         originalOrientation = Screen.orientation;
         Screen.orientation = ScreenOrientation.LandscapeLeft;
@@ -35,21 +47,87 @@ public sealed class TabletScene : MonoBehaviour
         back.color = background.color;
         back.raycastTarget = false;
         var canvas = GetComponentInParent<Canvas>();
-        view = new TabletView(canvas, feedback.DisplayFont, game.OnClickRetry, icons);
+        view = new TabletView(canvas, feedback.DisplayFont, icons,
+            () => Buy(TabletUpgrade.Attack), () => Buy(TabletUpgrade.Hull));
+        Combat.Reset(progress.MaxHp, progress.Power);
+        view.Render(Combat);
+        RenderPhase();
     }
 
     internal Sprite GetAbilityIcon(int color) => icons[color];
 
     internal void ResetRound()
     {
-        Combat.Reset();
+        run = progress.BeginRun();
+        seenAwards = 0;
+        bossDebriefUntil = 0;
+        Combat.Reset(progress.MaxHp, progress.Power);
+        view.ClearSortieEffects();
+        Phase = TabletPhase.Launching;
         view.Render(Combat);
+        RenderPhase();
+    }
+
+    internal void StartFlight()
+    {
+        Phase = TabletPhase.InFlight;
+        RenderPhase();
     }
 
     internal void Tick(float seconds)
     {
         Combat.Advance(seconds);
+        int newAwards = Combat.AwardedFlights & ~seenAwards;
+        if (newAwards != 0)
+        {
+            int amount = progress.Credit(run, Combat.AwardedFlights);
+            bool boss = (newAwards & TabletProgress.BossBit) != 0;
+            seenAwards |= newAwards;
+            if (boss) bossDebriefUntil = Time.unscaledTime + TabletView.BossBurstTime;
+            view.NoticeReward(amount, boss);
+        }
         view.Render(Combat);
+    }
+
+    internal void FinishFlight()
+    {
+        if (Time.unscaledTime >= bossDebriefUntil)
+        {
+            EnterSettlement();
+            return;
+        }
+        Phase = TabletPhase.Debrief;
+        RenderPhase();
+    }
+
+    void EnterSettlement()
+    {
+        view.ClearSortieEffects();
+        Phase = TabletPhase.Settlement;
+        RenderPhase();
+    }
+
+    void EnterHangar()
+    {
+        if (Phase != TabletPhase.Settlement) return;
+        purchaseLockedUntil = 0;
+        Phase = TabletPhase.Hangar;
+        RenderPhase();
+    }
+
+    void Buy(TabletUpgrade upgrade)
+    {
+        if (Phase != TabletPhase.Hangar || purchaseLockedUntil > 0 || !progress.Buy(upgrade)) return;
+        purchaseLockedUntil = Time.unscaledTime + PurchaseLockTime;
+        RenderPhase();
+    }
+
+    void RenderPhase()
+    {
+        System.Action action = null;
+        if (CanLaunch) action = puzzle.OnClickRetry;
+        else if (Phase == TabletPhase.Settlement) action = EnterHangar;
+        view.ShowSortie(Phase, Combat, progress, action, purchaseLockedUntil == 0);
     }
 
     internal string Match(int color, int count)
@@ -66,7 +144,19 @@ public sealed class TabletScene : MonoBehaviour
         return $"{ColorNames[color]} {count}개 · {AbilityNames[color]} {count}발";
     }
 
-    void LateUpdate() => view?.FitSafeArea();
+    void LateUpdate()
+    {
+        view?.FitSafeArea();
+        if (Phase == TabletPhase.Hangar && purchaseLockedUntil > 0 && Time.unscaledTime >= purchaseLockedUntil)
+        {
+            purchaseLockedUntil = 0;
+            RenderPhase();
+        }
+        if (Phase != TabletPhase.Debrief) return;
+        view.Render(Combat);
+        if (Time.unscaledTime < bossDebriefUntil) return;
+        EnterSettlement();
+    }
 
     void OnDestroy()
     {

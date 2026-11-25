@@ -72,7 +72,21 @@ public class Game : MonoBehaviour
             blocks[x].blocks[y].SetPosition(x, y);
         }
 
-        BeginRound();
+        if (tablet == null)
+            BeginRound();
+        else
+        {
+            Grade = minGrade;
+            tabletPalette = 3;
+            alphaScreen.SetActive(true);
+            objGameOver.SetActive(false);
+            SetTimer(timeSeconds);
+            RollBoard();
+            foreach (var column in blocks)
+            foreach (var block in column.blocks)
+                block.Settle();
+            matchFeedback.ResetRound(MaxColorCount);
+        }
     }
 
     void OnDestroy()
@@ -120,13 +134,14 @@ public class Game : MonoBehaviour
             foreach (var block in column.blocks)
                 block.Settle();
             matchFeedback.StopPulse();
+            tablet.FinishFlight();
         }
         soundEffects?.PlayRoundEnd();
     }
 
     public void OnClickRetry()
     {
-        if (boardData == null || roundActive || startingRound)
+        if (boardData == null || roundActive || startingRound || (tablet != null && !tablet.CanLaunch))
         {
             return;
         }
@@ -206,8 +221,15 @@ public class Game : MonoBehaviour
 
     IEnumerator StartRound()
     {
+        float launchEnd = Time.unscaledTime + TabletScene.LaunchTime;
         RollBoard();
         yield return WaitForDrop();
+        if (tablet != null)
+        {
+            while (Time.unscaledTime < launchEnd)
+                yield return null;
+            tablet.StartFlight();
+        }
         startingRound = false;
         roundActive = true;
         FinishDrop();
