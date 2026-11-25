@@ -8,7 +8,6 @@ using AdBrixRmIOS;
 
 #if UNITY_IPHONE && UNITY_IOS
 using UnityEngine.iOS;
-using NotificationServices = UnityEngine.iOS.NotificationServices;
 
 #endif
 
