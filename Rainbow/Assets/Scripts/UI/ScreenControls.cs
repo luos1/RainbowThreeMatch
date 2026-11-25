@@ -8,7 +8,10 @@ internal static class ScreenControls
     {
         var label = Add<Text>(parent, title, y, new Vector2(760, 120));
         label.text = title;
-        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        label.font = Resources.Load<Font>("NanumGothic-Regular");
+        label.resizeTextForBestFit = true;
+        label.resizeTextMinSize = 24;
+        label.resizeTextMaxSize = fontSize;
         label.fontSize = fontSize;
         label.alignment = TextAnchor.MiddleCenter;
         label.color = Color.white;

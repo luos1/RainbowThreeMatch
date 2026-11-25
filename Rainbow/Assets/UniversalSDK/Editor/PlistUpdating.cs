@@ -58,6 +58,13 @@ namespace Universal.UniversalSDK.Editor
                 schemes.AddString("com.googleusercontent.apps." + googleClientId.Substring(0, googleClientId.Length - suffix.Length));
                 rootDict.SetString("GoogleClientID", googleClientId);
                 rootDict.SetString("GIDClientID", googleClientId);
+                string webClientId = Environment.GetEnvironmentVariable("RAINBOW_GOOGLE_WEB_CLIENT_ID")?.Trim();
+                if (!string.IsNullOrEmpty(webClientId))
+                {
+                    if (!Regex.IsMatch(webClientId, @"\A[A-Za-z0-9-]+\.apps\.googleusercontent\.com\z"))
+                        throw new BuildFailedException("Configure a valid Google OAuth Web client ID.");
+                    rootDict.SetString("GIDServerClientID", webClientId);
+                }
             }
 
             if (UniversalSDKSettings.UseFacebookLogin)
