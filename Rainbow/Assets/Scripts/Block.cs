@@ -61,5 +61,7 @@ public class Block : MonoBehaviour
         anim.Drop(height);
     }
 
+    internal void Settle() => anim.Settle();
+
     public bool CheckDropEnd() => !anim.IsDropping;
 }

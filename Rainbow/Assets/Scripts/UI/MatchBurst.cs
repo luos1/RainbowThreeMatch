@@ -22,6 +22,8 @@ public sealed class MatchBurst : MonoBehaviour
     Vector2 restPosition;
     int used;
 
+    internal void UseCanvasOnly() => particles = null;
+
     internal void Play(HBlocks[] columns, List<(int x, int y)> group, (int x, int y) hit, bool chained)
     {
         if (!isActiveAndEnabled || board == null)

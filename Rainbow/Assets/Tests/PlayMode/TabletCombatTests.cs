@@ -1,0 +1,153 @@
+using NUnit.Framework;
+using UnityEngine;
+
+public class TabletCombatTests
+{
+    [Test]
+    public void CombatTypeExists()
+    {
+        Assert.That(typeof(Game).Assembly.GetType("TabletCombat"), Is.Not.Null);
+    }
+
+    [TestCase(1, 3, 0)]
+    [TestCase(2, 5, 0)]
+    [TestCase(3, 12, 0)]
+    [TestCase(5, 5, 18)]
+    [TestCase(7, 12, 42)]
+    public void AttackQueuesExactlyOneProjectilePerTile(int color, int count, int unlock)
+    {
+        var combat = new TabletCombat();
+        KeepAlive(combat, unlock);
+        combat.ApplyMatch(color, count);
+        Assert.That(combat.PendingShots, Is.EqualTo(count));
+        Assert.That(combat.OfferedShots, Is.EqualTo(count));
+    }
+
+    [Test]
+    public void InvalidAndLockedGroupsHaveNoCombatEffect()
+    {
+        var combat = new TabletCombat();
+        combat.ApplyMatch(1, 2);
+        combat.ApplyMatch(6, 12);
+        combat.ApplyMatch(8, 12);
+        Assert.That(combat.OfferedShots, Is.Zero);
+        Assert.That(combat.Shield, Is.Zero);
+    }
+
+    [Test]
+    public void DefenseCapsAndExpiresWithoutCreatingProjectiles()
+    {
+        var combat = new TabletCombat();
+        combat.Advance(9.1);
+        Assert.That(combat.Hp, Is.EqualTo(9));
+        combat.ApplyMatch(4, 5);
+        Assert.That(combat.Hp, Is.EqualTo(10));
+        KeepAlive(combat, 30);
+        combat.ApplyMatch(6, 3);
+        Assert.That(combat.Shield, Is.EqualTo(2.25).Within(.001));
+        combat.ApplyMatch(6, 5);
+        combat.ApplyMatch(6, 8);
+        Assert.That(combat.Shield, Is.EqualTo(6).Within(.001));
+        int health = combat.Hp;
+        combat.Advance(3.1);
+        Assert.That(combat.Hp, Is.EqualTo(health));
+        Assert.That(combat.BlockedDamage, Is.GreaterThan(0));
+        combat.Advance(10);
+        Assert.That(combat.Shield, Is.Zero);
+        Assert.That(combat.Hp, Is.LessThan(health));
+        Assert.That(combat.OfferedShots, Is.Zero);
+    }
+
+    [Test]
+    public void CadencePreservesFifoHandoffAndPoolCapacity()
+    {
+        var combat = new TabletCombat();
+        combat.ApplyMatch(1, 3);
+        combat.ApplyMatch(2, 12);
+        combat.Advance(.19);
+        Assert.That(combat.FiredShots, Is.EqualTo(3));
+        Assert.That(combat.TargetIndex, Is.GreaterThanOrEqualTo(0));
+        Assert.That(combat.LastFiredColor, Is.EqualTo(1));
+        combat.Advance(.12);
+        Assert.That(combat.LastFiredColor, Is.EqualTo(2));
+        combat.Advance(.68);
+        Assert.That(combat.FiredShots, Is.LessThanOrEqualTo(12));
+        Assert.That(combat.PendingShots + combat.FiredShots, Is.EqualTo(15));
+        Assert.That(combat.ActiveShots, Is.LessThanOrEqualTo(TabletCombat.ShotCapacity));
+    }
+
+    [Test]
+    public void YellowSharesItsFanAndOrangeVioletDamageIsBounded()
+    {
+        Assert.That(TabletCombat.SpreadAngle(0, 3), Is.LessThan(0));
+        Assert.That(TabletCombat.SpreadAngle(1, 3), Is.Zero);
+        Assert.That(TabletCombat.SpreadAngle(2, 3), Is.EqualTo(-TabletCombat.SpreadAngle(0, 3)));
+        Assert.That(TabletCombat.HitPower(1, 0), Is.EqualTo(1));
+        Assert.That(TabletCombat.HitPower(2, 1), Is.EqualTo(.5f));
+        Assert.That(TabletCombat.HitPower(3, 0), Is.EqualTo(1));
+        Assert.That(TabletCombat.HitPower(5, 0), Is.EqualTo(.8f));
+        Assert.That(TabletCombat.HitPower(7, 0), Is.EqualTo(1));
+        Assert.That(TabletCombat.HitPower(7, 1), Is.EqualTo(.35f));
+    }
+
+    [Test]
+    public void TimedPaletteAndWaveHealthFollowTheApprovedSchedule()
+    {
+        var combat = new TabletCombat();
+        Assert.That(combat.PaletteSize, Is.EqualTo(3));
+        KeepAlive(combat, 4);
+        Assert.That(combat.PaletteSize, Is.EqualTo(4));
+        KeepAlive(combat, 18);
+        Assert.That(combat.PaletteSize, Is.EqualTo(5));
+        Assert.That(combat.Wave, Is.EqualTo(2));
+        KeepAlive(combat, 30);
+        Assert.That(combat.PaletteSize, Is.EqualTo(6));
+        KeepAlive(combat, 38);
+        Assert.That(combat.Wave, Is.EqualTo(3));
+        KeepAlive(combat, 42);
+        Assert.That(combat.PaletteSize, Is.EqualTo(7));
+        Assert.That(combat.TotalStartingEnemyHp, Is.EqualTo(32f));
+    }
+
+    [Test]
+    public void RoundResultsPrioritizeLethalDamageAndResetAllPooledState()
+    {
+        var combat = new TabletCombat();
+        combat.Advance(60);
+        Assert.That(combat.Result, Is.EqualTo(TabletResult.Failed));
+        Assert.That(TabletCombat.Resolve(0, 60, true), Is.EqualTo(TabletResult.Failed));
+        combat.Reset();
+        KeepAlive(combat, 60);
+        Assert.That(combat.Result, Is.EqualTo(TabletResult.Survived));
+        Assert.That(combat.PendingShots + combat.ActiveShots, Is.Zero);
+        Assert.That(combat.Shield, Is.Zero);
+        combat.Reset();
+        combat.ApplyMatch(1, 45);
+        combat.ApplyMatch(1, 45);
+        for (int second = 0; second < 60 && combat.Result == TabletResult.Playing; second++)
+        {
+            if (second >= 4) combat.ApplyMatch(4, 4);
+            if (second >= 30) combat.ApplyMatch(6, 6);
+            combat.Advance(1);
+        }
+        Assert.That(combat.Result, Is.EqualTo(TabletResult.Cleared));
+        Assert.That(combat.EnemiesDefeated, Is.EqualTo(11));
+        Assert.That(combat.TotalDamage, Is.EqualTo(32).Within(.001));
+        Assert.That(combat.ActiveShots + combat.PendingShots, Is.Zero);
+        combat.Reset();
+        Assert.That(combat.Elapsed, Is.Zero);
+        Assert.That(combat.Hp, Is.EqualTo(10));
+        Assert.That(combat.PaletteSize, Is.EqualTo(3));
+        Assert.That(combat.FiredShots, Is.Zero);
+        Assert.That(combat.ActiveEffects, Is.Zero);
+    }
+
+    static void KeepAlive(TabletCombat combat, int until)
+    {
+        while (combat.Elapsed + .001f < until)
+        {
+            if (combat.PaletteSize >= 4) combat.ApplyMatch(4, 4);
+            combat.Advance(System.Math.Min(.5, until - combat.Elapsed));
+        }
+    }
+}

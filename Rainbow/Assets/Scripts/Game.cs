@@ -14,7 +14,8 @@ public class HBlocks
 public class Game : MonoBehaviour
 {
     public static Game instance;
-    public int MaxColorCount => Grade + 3;
+    public int MaxColorCount => tablet == null ? Grade + 3 : tabletPalette;
+    internal bool IsTablet => tablet != null;
     public int Score { get; private set; }
     public int Grade { get; private set; }
     public int TimeSeconds { get; private set; }
@@ -41,14 +42,28 @@ public class Game : MonoBehaviour
     bool startingRound;
     bool resolvingBoard;
     bool previousClickMatched;
+    TabletScene tablet;
+    int tabletPalette;
+    bool seededTabletHealing;
 
     void Awake()
     {
         instance = this;
+        tablet = GetComponent<TabletScene>();
     }
 
     void Start()
     {
+        if (tablet != null)
+        {
+            tablet.Setup(this, matchFeedback);
+            matchBurst?.UseCanvasOnly();
+            var blocker = (RectTransform)alphaScreen.transform;
+            blocker.SetParent(transform.Find("Game"), false);
+            blocker.anchorMin = Vector2.zero;
+            blocker.anchorMax = Vector2.one;
+            blocker.offsetMin = blocker.offsetMax = Vector2.zero;
+        }
         var positions = PositionHelper.instance;
         boardData = new int[positions.XCount, positions.YCount];
         for (int x = 0; x < boardData.GetLength(0); x++)
@@ -75,15 +90,38 @@ public class Game : MonoBehaviour
             return;
         }
 
+        if (tablet != null)
+        {
+            tablet.Tick(Time.deltaTime);
+            SetTimer(tablet.Combat.Remaining);
+            if (tablet.Combat.Result != TabletResult.Playing)
+                EndRound();
+            else if (!resolvingBoard)
+                SyncTabletPalette(true);
+            return;
+        }
+
         SetTimer(Mathf.Max(0f, remainingSeconds - Time.deltaTime));
         if (remainingSeconds <= 0f)
-        {
-            roundActive = false;
-            matchBurst?.Clear();
-            alphaScreen.SetActive(true);
+            EndRound();
+    }
+
+    void EndRound()
+    {
+        roundActive = false;
+        matchBurst?.Clear();
+        alphaScreen.SetActive(true);
+        if (tablet == null)
             objGameOver.SetActive(true);
-            soundEffects?.PlayRoundEnd();
+        else
+        {
+            StopAllCoroutines();
+            foreach (var column in blocks)
+            foreach (var block in column.blocks)
+                block.Settle();
+            matchFeedback.StopPulse();
         }
+        soundEffects?.PlayRoundEnd();
     }
 
     public void OnClickRetry()
@@ -110,6 +148,9 @@ public class Game : MonoBehaviour
 
         Score = 0;
         Grade = minGrade;
+        tabletPalette = 3;
+        seededTabletHealing = false;
+        tablet?.ResetRound();
         matchFeedback?.ResetRound(MaxColorCount);
         ShowScore?.Invoke(Score);
         ShowGrade?.Invoke(Grade);
@@ -136,11 +177,13 @@ public class Game : MonoBehaviour
             return;
         }
 
-        matchFeedback?.StartMatch(boardData[position.x, position.y], group.Count);
+        int color = boardData[position.x, position.y];
+        int paletteAtClick = MaxColorCount;
+        matchFeedback?.StartMatch(color, group.Count);
         resolvingBoard = true;
         alphaScreen.SetActive(true);
         bool chained = previousClickMatched;
-        if (chained)
+        if (chained && tablet == null)
         {
             SetTimer(Mathf.Min(timeSeconds, remainingSeconds + MatchRules.GetTimeBonus(group.Count)));
         }
@@ -148,6 +191,8 @@ public class Game : MonoBehaviour
 
         Score += MatchRules.GetScore(group.Count);
         ShowScore?.Invoke(Score);
+        if (tablet != null)
+            matchFeedback.ShowTabletResult(tablet.Match(color, group.Count));
         soundEffects?.PlayMatch(group.Count, chained);
         matchBurst?.Play(blocks, group, position, chained);
         foreach (var cell in group)
@@ -156,7 +201,7 @@ public class Game : MonoBehaviour
             blocks[cell.x].blocks[cell.y].Pop();
         }
 
-        StartCoroutine(RefillBoard());
+        StartCoroutine(RefillBoard(paletteAtClick));
     }
 
     IEnumerator StartRound()
@@ -186,12 +231,12 @@ public class Game : MonoBehaviour
         }
     }
 
-    IEnumerator RefillBoard()
+    IEnumerator RefillBoard(int paletteAtClick)
     {
         yield return null;
 
         // Neighbors cycle within the palette that was active when the player clicked.
-        var changed = MatchRules.CycleNeighbors(boardData, MaxColorCount);
+        var changed = MatchRules.CycleNeighbors(boardData, paletteAtClick);
         foreach (var cell in changed)
         {
             var block = blocks[cell.x].blocks[cell.y];
@@ -200,11 +245,16 @@ public class Game : MonoBehaviour
             block.ChangeSprite(nextColor);
         }
 
-        int nextGrade = MatchRules.GetGrade(Score, minGrade, maxGrade);
-        if (Grade != nextGrade)
+        if (tablet != null)
+            SyncTabletPalette(false);
+        else
         {
-            Grade = nextGrade;
-            ShowGrade?.Invoke(Grade);
+            int nextGrade = MatchRules.GetGrade(Score, minGrade, maxGrade);
+            if (Grade != nextGrade)
+            {
+                Grade = nextGrade;
+                ShowGrade?.Invoke(Grade);
+            }
         }
         matchFeedback?.FinishMatch(changed.Count, MaxColorCount);
 
@@ -225,6 +275,8 @@ public class Game : MonoBehaviour
         }
 
         yield return WaitForDrop();
+        if (tablet != null && roundActive)
+            SyncTabletPalette(true);
         if (roundActive && !MatchRules.HasMatch(boardData))
         {
             RollBoard();
@@ -233,7 +285,44 @@ public class Game : MonoBehaviour
         FinishDrop();
     }
 
-    int NextColor() => Random.Range(1, MaxColorCount + 1);
+    int NextColor()
+    {
+        int count = MaxColorCount;
+        if (tablet == null || count < 4)
+            return Random.Range(1, count + 1);
+        if (Random.value < .20f)
+            return count >= 6 && Random.value < .5f ? 6 : 4;
+        int attack = Random.Range(1, count - (count >= 6 ? 2 : 1) + 1);
+        return attack <= 3 ? attack : attack == 4 ? 5 : 7;
+    }
+
+    void SyncTabletPalette(bool guaranteeHealing)
+    {
+        int count = tablet.Combat.PaletteSize;
+        if (count != tabletPalette)
+        {
+            tabletPalette = count;
+            Grade = count - 3;
+            ShowGrade?.Invoke(Grade);
+            matchFeedback.SetPalette(count);
+        }
+        if (!guaranteeHealing || seededTabletHealing || count < 4)
+            return;
+        seededTabletHealing = true;
+
+        for (int x = 0; x < boardData.GetLength(0); x++)
+        for (int y = 0; y < boardData.GetLength(1); y++)
+            if (boardData[x, y] == 4 && MatchRules.FindGroup(boardData, x, y).Count >= 3)
+                return;
+
+        int center = boardData.GetLength(1) / 2;
+        for (int x = 1; x <= 3; x++)
+        {
+            boardData[x, center] = 4;
+            blocks[x].blocks[center].ChangeSprite(4);
+        }
+        matchFeedback.ShowTabletResult("초록 3칸으로 체력을 회복해요");
+    }
 
     IEnumerator WaitForDrop()
     {
