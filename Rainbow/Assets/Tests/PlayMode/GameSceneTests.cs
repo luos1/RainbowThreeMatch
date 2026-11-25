@@ -167,6 +167,78 @@ public class GameSceneTests
         Assert.That(burst == null, Is.True, "the scene owns all effect objects");
     }
 
+    [UnityTest]
+    public IEnumerator PortraitFeedbackShowsRealMatchAndFailure()
+    {
+        yield return SceneManager.LoadSceneAsync("02.Game");
+        var game = Game.instance;
+        yield return WaitFor(() => game.CanPlay, "portrait initial drop");
+        var panel = (RectTransform)game.transform.Find("Match Feedback");
+        Assert.That(panel, Is.Not.Null, "the game shows a passive color-cycle and match feedback panel");
+        Assert.That(panel.GetComponentsInChildren<Button>(), Is.Empty);
+        Assert.That(Array.TrueForAll(panel.GetComponentsInChildren<Graphic>(), graphic => !graphic.raycastTarget), Is.True);
+        AssertInsideViewport(panel, game.GetComponentInParent<Canvas>(), new Vector3[4]);
+
+        var palette = panel.Find("Palette wrap").GetComponent<Text>();
+        var status = panel.Find("Match status").GetComponent<Text>();
+        var detail = panel.Find("Match detail").GetComponent<Text>();
+        Assert.That(palette.text, Is.EqualTo("3/7색 · 노랑 → 빨강"));
+        Assert.That(palette.font.HasCharacter('빨'), Is.True);
+        Assert.That(palette.font.HasCharacter('→'), Is.True);
+
+        var field = typeof(Game).GetField("boardData", BindingFlags.Instance | BindingFlags.NonPublic);
+        var board = (int[,])field.GetValue(game);
+        for (int x = 0; x < board.GetLength(0); x++)
+        for (int y = 0; y < board.GetLength(1); y++)
+        {
+            board[x, y] = (x + 2 * y) % 3 + 1;
+            game.blocks[x].blocks[y].Show(board[x, y], 0);
+        }
+        yield return null;
+        var edge = game.blocks[0].blocks[0].GetComponent<Button>();
+        var edgeRect = (RectTransform)edge.transform;
+        ClickVisibleButton(edge, new Vector2(edgeRect.rect.xMin - 4f, edgeRect.rect.center.y));
+        Assert.That(status.text, Is.EqualTo("빨강 1개만 연결됐어요"));
+        Assert.That(detail.text, Does.Contain("3개 이상"));
+        Assert.That(game.Score, Is.Zero);
+        Assert.That(game.CanPlay, Is.True);
+
+        foreach (var point in new[] { (2, 3), (2, 4), (2, 5), (3, 4), (1, 4) })
+        {
+            board[point.Item1, point.Item2] = 1;
+            game.blocks[point.Item1].blocks[point.Item2].Show(1, 0);
+        }
+        yield return null;
+        int count = MatchRules.FindGroup(board, 2, 4).Count;
+        typeof(Game).GetProperty(nameof(Game.Score)).SetValue(game, 995);
+        ClickVisibleButton(game.blocks[2].blocks[4].GetComponent<Button>());
+        Assert.That(status.text, Is.EqualTo($"빨강 {count}개 매치!"));
+        yield return WaitFor(() => detail.text.Contains("→"), "neighbor transitions");
+        Assert.That(detail.text, Does.Contain("주황 → 노랑"));
+        Assert.That(detail.text, Does.Contain("노랑 → 빨강"));
+        Assert.That(palette.text, Is.EqualTo("4/7색 · 초록 → 빨강"));
+        Assert.That(game.Score, Is.EqualTo(995 + MatchRules.GetScore(count)));
+        Assert.That(panel.Find("Color 2/Previous color").GetComponent<Image>().enabled, Is.True);
+        Assert.That(panel.Find("Color 1/Next color").GetComponent<Image>().enabled, Is.True);
+    }
+
+    [TestCase(1080, 1920, 0, 0, 0)]
+    [TestCase(1080, 1917, 0, 0, 0)]
+    [TestCase(1080, 2337, 24, 36, 132)]
+    public void PortraitLayoutKeepsHudBoardAndFeedbackInsideSafeArea(int width, int height, int side, int bottom, int top)
+    {
+        var safe = new Rect(side, bottom, width - side * 2, height - bottom - top);
+        var boardSize = new Vector2(800, 1440);
+        var fit = MatchFeedbackPanel.Fit(safe, boardSize);
+        float boardTop = fit.center.y + boardSize.y * fit.scale * .5f;
+        float boardBottom = fit.center.y - boardSize.y * fit.scale * .5f;
+        Assert.That(fit.hud.yMin, Is.GreaterThan(boardTop));
+        Assert.That(fit.panel.yMax, Is.LessThan(boardBottom));
+        Assert.That(fit.scale, Is.InRange(.85f, 1.14f));
+        Assert.That(safe.Contains(fit.panel.min), Is.True);
+        Assert.That(safe.Contains(fit.hud.max), Is.True);
+    }
+
     static IEnumerator WaitFor(Func<bool> condition, string phase, float timeout = 5f)
     {
         float deadline = Time.realtimeSinceStartup + timeout;
@@ -189,7 +261,7 @@ public class GameSceneTests
         }
     }
 
-    static void ClickVisibleButton(Button button)
+    static void ClickVisibleButton(Button button, Vector2? position = null)
     {
         Canvas.ForceUpdateCanvases();
         var canvas = button.GetComponentInParent<Canvas>();
@@ -198,7 +270,7 @@ public class GameSceneTests
         Assert.That(events, Is.Not.Null);
         var pointer = new PointerEventData(events)
         {
-            position = RectTransformUtility.WorldToScreenPoint(canvas.worldCamera, rect.TransformPoint(rect.rect.center)),
+            position = RectTransformUtility.WorldToScreenPoint(canvas.worldCamera, rect.TransformPoint(position ?? rect.rect.center)),
             button = PointerEventData.InputButton.Left
         };
         var hits = new List<RaycastResult>();

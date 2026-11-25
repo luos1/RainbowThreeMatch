@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -49,6 +49,8 @@ public class ColorHelper : MonoBehaviour
         }
         return colors[index];
     }
+    internal Sprite GetPaletteSprite(int index) => sprites[index];
+
     public Sprite GetSprite(int index)
     {
         if(Game.instance.MaxColorCount < index)
