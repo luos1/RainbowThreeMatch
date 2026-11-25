@@ -137,6 +137,13 @@ public sealed class TabletScene : MonoBehaviour
         view.ShowSortie(Phase, Combat, progress, action, purchaseLockedUntil == 0);
     }
 
+    internal TabletMissOutcome RegisterMiss()
+    {
+        var outcome = Combat.RegisterMiss();
+        view.Render(Combat);
+        return outcome;
+    }
+
     internal string Match(int color, int count)
     {
         int before = Combat.Hp;

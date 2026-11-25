@@ -202,12 +202,7 @@ internal sealed partial class TabletCombat
             enemy.HitTime = Mathf.Max(0, enemy.HitTime - delta);
             enemy.MuzzleTime = Mathf.Max(0, enemy.MuzzleTime - delta);
             if (!enemy.Spawned)
-            {
-                enemy.Spawned = true;
-                enemy.Style = plan.Style;
-                enemy.Hp = enemy.MaxHp = plan.Hp;
-                enemy.Reinforcement = plan.Reinforcement;
-            }
+                SpawnEnemy(ref enemy, plan);
             CountVisibleReinforcement(i, ref enemy);
 
             enemy.Warning = !enemy.Attacked && elapsed >= FireAt(plan, enemy) - HostileWarning;
@@ -230,6 +225,14 @@ internal sealed partial class TabletCombat
             DroppedOnEnd = PendingShots + ActiveShots;
             ClearTransient();
         }
+    }
+
+    static void SpawnEnemy(ref Enemy enemy, EnemyPlan plan)
+    {
+        enemy.Spawned = true;
+        enemy.Style = plan.Style;
+        enemy.Hp = enemy.MaxHp = plan.Hp;
+        enemy.Reinforcement = plan.Reinforcement;
     }
 
     internal static TabletResult Resolve(int hp, double seconds, bool cleared)

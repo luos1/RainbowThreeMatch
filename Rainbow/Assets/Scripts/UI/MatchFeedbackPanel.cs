@@ -97,16 +97,14 @@ public sealed class MatchFeedbackPanel : MonoBehaviour
         ShowFailure(color, connected);
         switch (outcome)
         {
-            case TabletMissOutcome.Queued:
-                detail.text = "3회 실패 · 다음 소형 편대 2배";
+            case TabletMissOutcome.Deployed:
+            case TabletMissOutcome.ReserveDeployed:
+                detail.text = "3회 실패 · 좌·우 편대 2배 투입";
                 break;
-            case TabletMissOutcome.SupportQueued:
-                detail.text = "3회 실패 · 소형 지원편대 출동";
+            case TabletMissOutcome.AlreadyEntering:
+                detail.text = "3회 실패 · 증원 진입 중";
                 break;
-            case TabletMissOutcome.AlreadyQueued:
-                detail.text = "3회 실패 · 이미 증원 대기 중";
-                break;
-            case TabletMissOutcome.SupportUsed:
+            case TabletMissOutcome.ReserveUsed:
                 detail.text = "3회 실패 · 마지막 지원편대 사용 완료";
                 break;
             default:

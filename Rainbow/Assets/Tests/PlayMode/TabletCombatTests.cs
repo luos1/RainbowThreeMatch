@@ -253,17 +253,17 @@ public class TabletCombatTests
     }
 
     [Test]
-    public void OnlyOneDoubleBatchCanBeQueuedAndReinforcementsDoNotAwardACredit()
+    public void OnlyOneDoubleFormationEntersAtATimeAndReinforcementsDoNotAwardACredit()
     {
         var combat = new TabletCombat();
-        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.Queued));
-        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.AlreadyQueued));
+        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.Deployed));
+        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.AlreadyEntering));
         Assert.That(combat.PlannedEnemies, Is.EqualTo(29));
         combat.RegisterMiss();
         combat.ApplyMatch(1, 3);
         Assert.That(combat.FailureStreak, Is.Zero);
-        Assert.That(combat.ReinforcementsPending, Is.EqualTo(5));
-        KeepAlive(combat, 9);
+        Assert.That(combat.ReinforcementsPending + combat.ReinforcementsArrived, Is.EqualTo(5));
+        combat.Advance(.65);
         Assert.That(combat.ReinforcementsArrived, Is.EqualTo(5));
         Assert.That(combat.ReinforcementsPending, Is.Zero);
 
@@ -281,10 +281,9 @@ public class TabletCombatTests
         var combat = new TabletCombat();
         KeepAlive(combat, 47);
         Assert.That(combat.Boss.Spawned && combat.Boss.Hp > 0, Is.True);
-        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.SupportQueued));
-        combat.Advance(.05);
-        Assert.That(combat.ReinforcementsArrived, Is.EqualTo(3));
-        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.SupportUsed));
+        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.ReserveDeployed));
+        Assert.That(combat.ReinforcementsArrived, Is.EqualTo(6));
+        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.ReserveUsed));
         int bosses = 0;
         foreach (var enemy in combat.Enemies) if (enemy.Spawned && enemy.Style == 2) bosses++;
         Assert.That(bosses, Is.EqualTo(1));
@@ -301,9 +300,8 @@ public class TabletCombatTests
         combat.ApplyMatch(4, 5);
         combat.ApplyMatch(6, 5);
         combat.Advance(.90);
-        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.SupportQueued));
-        combat.Advance(.025);
-        Assert.That(combat.ReinforcementsArrived, Is.EqualTo(3));
+        Assert.That(ThreeMisses(combat), Is.EqualTo(TabletMissOutcome.ReserveDeployed));
+        Assert.That(combat.ReinforcementsArrived, Is.EqualTo(6));
         combat.RegisterMiss();
         combat.Advance(.1);
         Assert.That(combat.Result, Is.EqualTo(TabletResult.Survived));
