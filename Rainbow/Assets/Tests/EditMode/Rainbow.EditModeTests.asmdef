@@ -1,0 +1,6 @@
+{
+    "name": "Rainbow.EditModeTests",
+    "references": ["Rainbow.Game"],
+    "includePlatforms": ["Editor"],
+    "optionalUnityReferences": ["TestAssemblies"]
+}

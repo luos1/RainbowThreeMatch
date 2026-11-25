@@ -80,6 +80,7 @@ internal sealed partial class TabletView
 
         player = Entity("Carrier bow", Art("carrier-bow"));
         player.preserveAspect = false;
+        BuildUpgradeVisuals();
         for (int i = 0; i < enemySprites.Length; i++)
         {
             warnings[i] = Graphic(arena, "Enemy strike warning " + (i + 1), 0, 0, 0, 0, new Color(1, .62f, .22f, .96f));
@@ -134,6 +135,7 @@ internal sealed partial class TabletView
         float unit = Mathf.Min(arena.rect.width, arena.rect.height);
         RenderFlow(state.Elapsed);
         RenderCarrier(state);
+        RenderUpgrades(state, unit);
 
         for (int i = 0; i < enemySprites.Length; i++)
         {
@@ -185,6 +187,7 @@ internal sealed partial class TabletView
         for (int i = 0; i < burstSprites.Length; i++)
         {
             var fx = state.Effects[i];
+            RenderDefeatShockwave(i, fx, unit);
             SetActive(burstSprites[i], fx.Lifetime > 0);
             if (fx.Lifetime <= 0) continue;
             float progress = 1f - fx.Lifetime / fx.Duration;
@@ -194,7 +197,8 @@ internal sealed partial class TabletView
             Color tint = Color.Lerp(ImpactColors[fx.Color], Color.white, fx.Burst ? .45f : .28f);
             tint.a = 1f - progress * .7f;
             burstSprites[i].color = tint;
-            Place(burstSprites[i], fx.Position, unit * fx.Size * (.82f + progress * .38f));
+            float scale = fx.Burst ? weaponFeedback.DefeatScale : 1f;
+            Place(burstSprites[i], fx.Position, unit * fx.Size * scale * (.82f + progress * .38f));
         }
 
         RenderDefenseVisuals(state, unit);
@@ -233,12 +237,14 @@ internal sealed partial class TabletView
             image.gameObject.SetActive(active);
     }
 
-    static void Place(Image image, Vector2 normalized, float size)
+    static void Place(Image image, Vector2 normalized, float size) => Place(image, normalized, Vector2.one * size);
+
+    static void Place(Image image, Vector2 normalized, Vector2 size)
     {
         var rect = image.rectTransform;
         rect.anchorMin = rect.anchorMax = normalized;
         rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = Vector2.one * size;
+        rect.sizeDelta = size;
     }
 
     static void Direction(Image image, Vector2 direction)

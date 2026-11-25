@@ -153,6 +153,6 @@ internal sealed partial class TabletView
         float progress = 1 - (bossBurstUntil - now) / BossBurstTime;
         bossBurst.sprite = explosions[Mathf.Min((int)(progress * explosions.Length), explosions.Length - 1)];
         bossBurst.color = new Color(1f, .86f, .65f, 1 - progress * .7f);
-        Place(bossBurst, boss.Position, unit * (.20f + progress * .13f));
+        Place(bossBurst, boss.Position, unit * (.20f + progress * .13f) * weaponFeedback.DefeatScale);
     }
 }

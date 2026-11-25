@@ -55,6 +55,7 @@ public sealed class TabletScene : MonoBehaviour
         view = new TabletView(canvas, feedback.DisplayFont, icons, glyphs,
             () => Buy(TabletUpgrade.Attack), () => Buy(TabletUpgrade.Hull));
         Combat.Reset(progress.MaxHp, progress.Power);
+        view.ConfigureUpgrades(progress.AttackLevel, progress.HullLevel);
         view.Render(Combat);
         RenderPhase();
     }
@@ -70,6 +71,7 @@ public sealed class TabletScene : MonoBehaviour
         bossDebriefUntil = 0;
         Combat.Reset(progress.MaxHp, progress.Power);
         view.ClearSortieEffects();
+        view.ConfigureUpgrades(progress.AttackLevel, progress.HullLevel);
         Phase = TabletPhase.Launching;
         view.Render(Combat);
         RenderPhase();
